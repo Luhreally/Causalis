@@ -890,6 +890,17 @@ for (const view of [
     await press(".place-insp-back", "‹ Back to the square's page from its gate");
     await until("the square's page from its gate", async () => (await kind()) === "lot", 8000);
     check((await kind()) === "lot", "Back from its gate comes to the square's page");
+    // Its bound (P6): from the square's page, and Back.
+    await k('document.querySelector(".place-insp-bound")?.scrollIntoView({ block: "center" })');
+    await page.waitForTimeout(300);
+    await press(".place-insp-bound", "The bound ▸, on the square's page");
+    await until("its bound", async () => (await kind()) === "bound", 8000);
+    await page.waitForTimeout(400);
+    say(`bound: ${(await text(".place-insp")).slice(0, 300)}`);
+    await look("20l-bound", "the town's bound");
+    await press(".place-insp-back", "‹ Back to the square's page from its bound");
+    await until("the square's page from its bound", async () => (await kind()) === "lot", 8000);
+    check((await kind()) === "lot", "Back from its bound comes to the square's page");
     // Raised by hand (P1): a home's lot page offers what the town could raise on its lots; asked there, it is offered no more.
     if (kept !== null) {
       await k(`globalThis.causalis.place.inspect(${JSON.stringify(`plcl:${town.ref}:${kept + 3}`)})`);

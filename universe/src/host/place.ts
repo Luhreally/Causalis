@@ -6132,7 +6132,43 @@ export const COND = {
   craving: 12,
   /** P4: their household's table: the foods its pantry holds, one alone a meagre fare, many a varied one. */
   fare: 13,
+  /** P6: held in bondage, as their land's people are (sim/order bonds): its kind weighs on them. */
+  bound: 14,
 } as const;
+/** P6. What each kind of bondage weighs on a mood (BONDS' order; est.: a chattel's the heaviest, an indenture's term the lightest). */
+const BOND_MOOD = [-8, -3, -4, -2, -3] as const;
+/**
+ * P6. Who of a place is held in bondage, as its land's people are (sim/order/order.ts: the share of them in each kind,
+ * read once a year a place), by a keyed draw on their number, and not those freed by your word (managed freed).
+ */
+export type PlaceBonds = { readonly shares: readonly number[]; readonly freed: ReadonlySet<number> };
+const BONDS_KEPT = new WeakMap<Place, { year: number; n: number; b: PlaceBonds }>();
+export function placeBonds(world: World, place: Place): PlaceBonds {
+  const year = Math.floor(place.t / YEAR),
+    freed = managedOf(world)?.get(place.town)?.freed ?? [],
+    was = BONDS_KEPT.get(place);
+  if (was && was.year === year && was.n === freed.length) return was.b;
+  const b = {
+    shares: [...(orderOf(world)?.lands.get(place.cell)?.shares ?? [])],
+    freed: new Set(freed),
+  };
+  BONDS_KEPT.set(place, { year, n: freed.length, b });
+  return b;
+}
+/** The kind of bondage one of a place is held in (its place in BONDS; -1: free, or freed by your word). P6. */
+export function placeBondOf(place: Place, id: number, b: PlaceBonds | undefined): number {
+  if (!b || !b.shares.length || b.freed.has(id)) return -1;
+  const u = (Math.imul(id ^ place.key ^ 0x5bd1e995, 0x85ebca6b) >>> 0) / 4294967296;
+  let at = 0;
+  for (let k = 0; k < b.shares.length; k++) {
+    at += b.shares[k]!;
+    if (u < at) return k;
+  }
+  return -1;
+}
+/** Whether one of a place was held in bondage and freed by your word (P6). */
+export const placeFreed = (place: Place, id: number, b: PlaceBonds | undefined): boolean =>
+  !!b?.freed.has(id) && placeBondOf(place, id, { shares: b.shares, freed: new Set() }) >= 0;
 /**
  * P4. How much a table of one food alone weighs on a mood where others of the town eat of more, and one of more than one
  * (est.: about a plain pot against a fine one). Its households hold one food or two (first light, year 150: grain, and
@@ -6452,6 +6488,10 @@ function moodTerms(
       days: null,
       ...(houses.home[h]! >= 0 ? { src: srcLot(houses.home[h]!) } : {}),
     });
+  // (Held in bondage, P6.)
+  const bond = placeBondOf(place, p.id[i]!, BONDS_KEPT.get(place)?.b);
+  if (bond >= 0)
+    out.push({ bit: 0, cond: COND.bound, size: BOND_MOOD[bond] ?? -3, days: null });
   // (What they take and need, P4.)
   if (
     ageOf(p, i, place.t) >= fk.life.adulthood &&
@@ -7161,6 +7201,7 @@ function tickCx(world: World, place: Place, f: Frame) {
     post,
     lets,
     drink: placeDrink(world, place),
+    bonds: placeBonds(world, place),
     // (The last come for company to each meeting place this tick, as `visitor` is the square's: O2.)
     visitAt: zoned?.meets.length ? new Map<number, number>() : null,
     // (Tiers: how far into their stride the tick a turn is at stands (`base`), how far past that tick a turn that goes on

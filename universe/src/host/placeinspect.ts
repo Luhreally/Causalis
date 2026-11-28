@@ -63,6 +63,7 @@ import { placeBelow } from "./placebelow.ts";
 import { placeLegends, placeWork } from "./placelegends.ts";
 import { placeGate } from "./placevisitors.ts";
 import { placeFamily } from "./placefamily.ts";
+import { bondWords, placeBound } from "./placebound.ts";
 import {
   ACT,
   AT,
@@ -200,6 +201,7 @@ const COND_WORDS: Readonly<Record<number, readonly [string, string]>> = {
   [COND.crowded]: ["🧱", "Works in a crowd at the yard and the door, no bench of their own"],
   [COND.craving]: ["🍶", "Needs what they take"],
   [COND.fare]: ["🥖", "Their household's table: the foods its pantry holds"],
+  [COND.bound]: ["⛓️", "Held in bondage"],
   [COND.kinAbed]: ["🛏️", "One of their household abed"],
   [COND.friendAbed]: ["🛏️", "Their friend abed"],
   [COND.tool]: ["🛠️", "The tool of their trade"],
@@ -598,6 +600,10 @@ export function inspectPerson(world: World, place: Place, id: number): PlaceInsp
     healthWords: p.health[i] ? (healthWords(world, place, i) ?? ailWords(place, i)) : null,
     mark: markWords(world, place, i),
     ...tableOf(world, place, i, child),
+    ...((): { bond: string | null; freeable: boolean } => {
+      const b = bondWords(world, place, id);
+      return { bond: b?.words ?? null, freeable: !!b?.freeable };
+    })(),
     lack: Math.floor(p.lack[i]! / 144),
     skill: skill
       ? `${cap(skill.words)} at ${OCCUPATION_WORK[r.occupation] ?? "their work"} · ${skill.hours.toLocaleString("en-US")} h`
@@ -1133,6 +1139,7 @@ export function placeInspect(world: World, town: string, ref: string): PlaceInsp
   if (ref.startsWith("plcb:")) return placeBelow(world, place);
   if (ref.startsWith("plcy:")) return placeLegends(world, place);
   if (ref.startsWith("plca:")) return placeGate(world, place);
+  if (ref.startsWith("plcd:")) return placeBound(world, place);
   if (ref.startsWith("plcf:")) {
     const id = Number(ref.slice(ref.lastIndexOf(":") + 1));
     return Number.isInteger(id) ? placeFamily(world, place, id) : null;

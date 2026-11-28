@@ -1205,7 +1205,8 @@ h3.place-insp-sub {
   color: var(--muted, #a9bbe2);
 }
 .place-hud .place-insp-order,
-.place-hud .place-insp-family {
+.place-hud .place-insp-family,
+.place-hud .place-insp-free {
   padding: 0 10px;
 }
 /* Inside a lot (O3): its plan, fit to the inspector; its tiles faint, its rooms walled, those here as rings. */

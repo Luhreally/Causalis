@@ -11,6 +11,7 @@
 import type {
   PlaceInspect,
   PlaceInspectBelow,
+  PlaceInspectBound,
   PlaceInspectFamily,
   PlaceInspectGate,
   PlaceInspectLegends,
@@ -254,6 +255,7 @@ export class PlaceInspector {
     else if (x.kind === "legends") this.legends(x);
     else if (x.kind === "gate") this.gate(x);
     else if (x.kind === "family") this.family(x);
+    else if (x.kind === "bound") this.bound(x);
     else this.lot(x);
   }
 
@@ -292,6 +294,16 @@ export class PlaceInspector {
     // (Their table, and what they take and need: P4.)
     body.push(el("p", "place-insp-why place-insp-table", x.table));
     if (x.takes) body.push(el("p", "place-insp-why place-insp-takes", x.takes));
+    // (Held in bondage, and your word to free them: P6.)
+    if (x.bond) {
+      body.push(el("p", "place-insp-why place-insp-bond", `⛓️ ${x.bond}`));
+      if (x.freeable && this.orders) {
+        const free = el("button", "place-insp-free", "Free them");
+        free.setAttribute("aria-label", `Free ${x.name} from bondage by your word`);
+        free.onclick = () => this.onOrder("place.free", { person: x.id });
+        body.push(free);
+      }
+    }
     // (How closely they are followed, and a key to follow them in full for good, or let them be. Tiers.)
     const tier = el("div", "place-insp-tier"),
       fixed = x.tier.pinned && !x.tier.soft,
@@ -548,6 +560,31 @@ export class PlaceInspector {
       el("p", "place-insp-why", x.words),
     );
   }
+  /** The bound of a town (P6): its land's bondage by kind, captives, those its justice holds, each of its bound a key. */
+  private bound(x: PlaceInspectBound): void {
+    this.picture(x);
+    const title = `${x.icon} ${x.name}`;
+    if (this.title.textContent !== title) this.title.textContent = title;
+    this.sub.textContent = `${x.people.length} bound named · ${x.held} held by its justice${x.freed ? ` · ${x.freed} freed` : ""}`;
+    const body: HTMLElement[] = [el("p", "place-insp-why", x.words)];
+    if (x.kinds.length)
+      body.push(
+        el("p", "place-insp-label", "Its land's bondage"),
+        this.facts(x.kinds.map((k) => [k.name, `${k.here} here · ${k.words}`, null] as [string, string, null])),
+      );
+    if (x.captives) body.push(el("p", "place-insp-why", x.captives));
+    if (x.people.length) {
+      const box = el("div", "place-insp-people");
+      for (const r of x.people) {
+        const b = el("button", "place-insp-person place-bound-row");
+        b.append(el("span", "place-row-name", r.name), el("span", "place-row-what", r.words));
+        b.onclick = () => this.onInspect(r.ref);
+        box.append(b);
+      }
+      body.push(el("p", "place-insp-label", "Its bound"), box);
+    }
+    this.body.replaceChildren(...body);
+  }
   /** One's family in the town (P3): each of their kin a key while of the town; a pairing to come said. */
   private family(x: PlaceInspectFamily): void {
     this.picture(x);
@@ -793,6 +830,11 @@ export class PlaceInspector {
       gate.setAttribute("aria-label", "Who has come to the town's gate, and who comes");
       gate.onclick = () => this.onInspect(x.ref.replace(/^plcl:(.*):\d+$/, "plca:$1"));
       body.push(gate);
+      // (Its bound, P6.)
+      const bound = el("button", "place-insp-order place-insp-bound", "The bound ▸");
+      bound.setAttribute("aria-label", "The town's bound, its captives and those its justice holds");
+      bound.onclick = () => this.onInspect(x.ref.replace(/^plcl:(.*):\d+$/, "plcd:$1"));
+      body.push(bound);
     }
     if (x.zoneWords) body.push(el("p", "place-insp-why", x.zoneWords));
     // (The guard's post by your order, O7: those standing to arms keep it, watching the homes within a cry of it.)

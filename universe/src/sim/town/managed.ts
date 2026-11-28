@@ -120,6 +120,8 @@ export type Managed = {
    * on to another of its land's towns.
    */
   gate?: 0;
+  /** Those of it freed from bondage by your word (P6): their numbers. Absent: none. */
+  freed?: number[];
 };
 
 /** What a lot of a town can be zoned as (O2): a meeting place, or kept clear. */
@@ -223,6 +225,7 @@ export class ManagedStore implements StateStore {
         ...(m.zones ? { zones: [...m.zones] } : {}),
         ...(m.post !== undefined ? { post: m.post } : {}),
         ...(m.gate !== undefined ? { gate: m.gate } : {}),
+        ...(m.freed ? { freed: [...m.freed] } : {}),
       });
   }
   private add(m: Managed): Managed {
@@ -753,6 +756,21 @@ export function installManaged(world: World, ctx: () => PopulationContext): Mana
       const m = store.of(s.ref, s.cell, t);
       if (a.lot === null) delete m.post;
       else m.post = a.lot;
+    },
+  });
+  // One of it freed from bondage by your word (P6): their number.
+  world.defineCommand({
+    type: "place.free",
+    validate: (args) => {
+      const a = args as { person?: unknown };
+      return held(args) ?? (whole(a.person, 1, 0xfffffffe) ? null : "person must be one of its people's numbers");
+    },
+    apply: (command, t) => {
+      const a = command.args as { town: Ref; person: number },
+        s = ctx().settlements.get(a.town);
+      if (!s) return;
+      const m = store.of(s.ref, s.cell, t);
+      if (!(m.freed ??= []).includes(a.person)) m.freed.push(a.person);
     },
   });
   // Its gate shut to newcomers (P2), or opened (null).

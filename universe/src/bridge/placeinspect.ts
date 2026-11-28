@@ -71,6 +71,9 @@ export type PlaceInspectPerson = {
   /** P4. Their household's table (the foods its pantry holds), and what they take and need (null: nothing). */
   readonly table: string;
   readonly takes: string | null;
+  /** P6. The bondage they are held in, in words (null: free), and whether your word may free them. */
+  readonly bond: string | null;
+  readonly freeable: boolean;
   readonly lack: number;
   /** Their skill at their trade, said short ("skilled, 1,240 h"), and in full. */
   readonly skill: string | null;
@@ -419,7 +422,27 @@ export type PlaceInspectFamily = {
   readonly words: string;
 };
 
+/**
+ * The bound of a town (P6): the share of its land's people in each kind of bondage and how many of the town so; captives its
+ * realm holds in its land; those its justice holds; and the bound of the town, each a key to their page, where your word
+ * may free them.
+ */
+export type PlaceInspectBound = {
+  readonly kind: "bound";
+  readonly ref: string;
+  readonly lotRef: string;
+  readonly name: string;
+  readonly icon: string;
+  readonly kinds: readonly { readonly name: string; readonly words: string; readonly here: number }[];
+  readonly captives: string | null;
+  readonly held: number;
+  readonly people: readonly { readonly name: string; readonly ref: string; readonly words: string }[];
+  readonly freed: number;
+  readonly words: string;
+};
+
 export type PlaceInspect =
+  | PlaceInspectBound
   | PlaceInspectFamily
   | PlaceInspectGate
   | PlaceInspectWork
