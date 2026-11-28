@@ -9,6 +9,8 @@ import {
   FESTER_MOST,
   FOODS,
   GOODS,
+  INTOX_KINDS,
+  INTOX_WORDS,
   MEMBERS,
   OCC,
   TISSUE_WORDS,
@@ -129,6 +131,9 @@ import {
   placeNeedsMore,
   GEAR,
   type Item,
+  fareMost,
+  placeDrink,
+  placeTakes,
 } from "./place.ts";
 import {
   ailWords,
@@ -190,6 +195,8 @@ const COND_WORDS: Readonly<Record<number, readonly [string, string]>> = {
   [COND.passion]: ["⭐", "At the work their household taught them"],
   [COND.kept]: ["🪢", "Kept from the work their household taught them"],
   [COND.crowded]: ["🧱", "Works in a crowd at the yard and the door, no bench of their own"],
+  [COND.craving]: ["🍶", "Needs what they take"],
+  [COND.fare]: ["🥖", "Their household's table: the foods its pantry holds"],
   [COND.kinAbed]: ["🛏️", "One of their household abed"],
   [COND.friendAbed]: ["🛏️", "Their friend abed"],
   [COND.tool]: ["🛠️", "The tool of their trade"],
@@ -198,6 +205,32 @@ const COND_WORDS: Readonly<Record<number, readonly [string, string]>> = {
   [COND.room]: ["🛏️", "Their home's room"],
   [COND.beauty]: ["🗿", "A fine work in sight of their door"],
 };
+/** Their household's table and what they take (P4): the foods its pantry holds; what their land takes, where they need it. */
+function tableOf(
+  world: World,
+  place: Place,
+  i: number,
+  child: boolean,
+): { table: string; takes: string | null } {
+  const h = place.people.house[i]!,
+    held: string[] = [];
+  for (let k = 0; k < FOODS.length; k++)
+    if (place.houses.pantry[h * FOODS.length + k]! > 0) held.push(GOODS[FOODS[k]!]!.name.toLowerCase());
+  const most = fareMost(place, Math.floor(place.t / DAY)),
+    table = !held.length
+      ? "Their household's pantry is bare: they eat what they can get"
+      : held.length === 1
+        ? `Their household eats ${held[0]} alone${most >= 2 ? ": a meagre fare, where others of the town eat of more" : ", as the whole town does"}`
+        : `Their household eats ${held.slice(0, -1).join(", ")} and ${held.at(-1)}: a varied table`;
+  const d = placeDrink(world, place);
+  if (child || !placeTakes(place, place.people.id[i]!, d.share)) return { table, takes: null };
+  const k = INTOX_KINDS[d.kind]!,
+    lost = Math.round((1 - d.worth) * 100);
+  return {
+    table,
+    takes: `Needs ${INTOX_WORDS[k].name}, as ${Math.round(d.share * 100)} in a hundred of their land do: it ${INTOX_WORDS[k].does}${lost > 0 ? `; their work is ${lost}% the less for it` : lost < 0 ? `; it keeps them ${-lost}% the longer at their work` : ""}`,
+  };
+}
 /** Comfort and beauty as their needs read: wanting the more, the fewer beds for those under their home and the less fine a work in sight. */
 function needsMore(
   world: World,
@@ -558,6 +591,7 @@ export function inspectPerson(world: World, place: Place, id: number): PlaceInsp
     health: p.health[i]!,
     healthWords: p.health[i] ? (healthWords(world, place, i) ?? ailWords(place, i)) : null,
     mark: markWords(world, place, i),
+    ...tableOf(world, place, i, child),
     lack: Math.floor(p.lack[i]! / 144),
     skill: skill
       ? `${cap(skill.words)} at ${OCCUPATION_WORK[r.occupation] ?? "their work"} · ${skill.hours.toLocaleString("en-US")} h`

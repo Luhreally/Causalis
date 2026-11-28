@@ -289,6 +289,9 @@ export class PlaceInspector {
     const needs = el("div", "place-insp-needs");
     for (const n of x.needs) needs.append(this.needBar(n, x.serves));
     body.push(needs);
+    // (Their table, and what they take and need: P4.)
+    body.push(el("p", "place-insp-why place-insp-table", x.table));
+    if (x.takes) body.push(el("p", "place-insp-why place-insp-takes", x.takes));
     // (How closely they are followed, and a key to follow them in full for good, or let them be. Tiers.)
     const tier = el("div", "place-insp-tier"),
       fixed = x.tier.pinned && !x.tier.soft,

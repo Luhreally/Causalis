@@ -497,6 +497,9 @@ for (const view of [
       await look("17-insp-orders", "a person's orders in the inspector");
       await press(".place-insp-order", "Orders, closed");
     } else say("the one inspected keeps no work: no orders to look at");
+    // Their table, and what they take where they need it (P4): on their first screen.
+    check((await shown(".place-insp-table")) > 0, "their household's table told on their page");
+    say(`table: ${await text(".place-insp-table")}${(await shown(".place-insp-takes")) ? ` · ${await text(".place-insp-takes")}` : ""}`);
     // Their family (P3): from their page, and Back to them.
     {
       const kind = () => k<string>('document.querySelector(".place-insp")?.dataset.kind ?? ""');

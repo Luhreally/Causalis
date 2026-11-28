@@ -204,6 +204,10 @@ import {
   familySizeOf,
   managedDead,
   managedOf,
+  INTOX,
+  INTOX_STORE,
+  intoxDependent,
+  intoxLost,
   CIVIC_LOTS,
   artOf,
   courtIn,
@@ -6083,7 +6087,64 @@ export const COND = {
   beauty: 10,
   /** O4: their post in a building whose floor has no bench left for them (benchless): at the yard and the door. */
   crowded: 11,
+  /** P4: what they take and have come to need, as their land's people do (sim/money intox): it costs them. */
+  craving: 12,
+  /** P4: their household's table: the foods its pantry holds, one alone a meagre fare, many a varied one. */
+  fare: 13,
 } as const;
+/**
+ * P4. How much a table of one food alone weighs on a mood where others of the town eat of more, and one of more than one
+ * (est.: about a plain pot against a fine one). Its households hold one food or two (first light, year 150: grain, and
+ * meat and milk for one in ten of a herding town's), so two are a varied table.
+ */
+const FARE_ONE = -2,
+  FARE_MANY = 3,
+  FARE_MANY_FOODS = 2;
+/** P4. What needing what one takes weighs on a mood, all the while (est.: half a crowded bench's). */
+const CRAVING_MOOD = -4;
+/**
+ * P4. What its land's people take and how many need it (sim/money/intox.ts, read once a year a place): the share of them
+ * who need it, the kind most taken, and what a tick's making by one who needs it is worth: their land's work lost to it
+ * shared among those who need it (more where what wakes keeps them at it). Those of the town who need it are the share of
+ * them its keyed draw takes, by number.
+ */
+export type PlaceDrink = { readonly share: number; readonly worth: number; readonly kind: number };
+const DRINK = new WeakMap<Place, { year: number; d: PlaceDrink }>();
+export function placeDrink(world: World, place: Place): PlaceDrink {
+  const year = Math.floor(place.t / YEAR),
+    was = DRINK.get(place);
+  if (was && was.year === year) return was.d;
+  const share = intoxDependent(world, place.cell),
+    lost = intoxLost(world, place.cell),
+    row = moneyStore(world, INTOX_STORE)?.get(place.cell);
+  let kind = 0;
+  for (let k = 1; k < 4; k++) if ((row?.[INTOX.use + k] ?? 0) > (row?.[INTOX.use + kind] ?? 0)) kind = k;
+  const d = {
+    share,
+    worth: share > 0 ? Math.max(0.4, Math.min(1.2, 1 - lost / share)) : 1,
+    kind,
+  };
+  DRINK.set(place, { year, d });
+  return d;
+}
+/** P4. The most foods any household of a place holds, read once a day (its tables are told against it). */
+const FARE = new WeakMap<Place, { day: number; most: number }>();
+export function fareMost(place: Place, day: number): number {
+  const was = FARE.get(place);
+  if (was && was.day === day) return was.most;
+  const h = place.houses;
+  let most = 0;
+  for (let k = 0; k < h.n; k++) {
+    let n = 0;
+    for (let f = 0; f < FOODS.length; f++) if (h.pantry[k * FOODS.length + f]! > 0) n++;
+    if (n > most) most = n;
+  }
+  FARE.set(place, { day, most });
+  return most;
+}
+/** Whether one of a place needs what its land takes (P4): its keyed draw on their number against the share who do. */
+export const placeTakes = (place: Place, id: number, share: number): boolean =>
+  share > 0 && (Math.imul(id ^ place.key, 0x9e3779b1) >>> 0) / 4294967296 < share;
 /**
  * What a household's home gives it each day of two needs besides the hourly ones (asked 2026-11-26: "more needs where the
  * world has the means, such as warmth, comfort, beauty and company, each with a cause in the place"; warmth and company are
@@ -6334,8 +6395,28 @@ function moodTerms(
       src: dead,
     });
   }
-  let pantry = 0;
-  for (let k = 0; k < FOODS.length; k++) pantry += houses.pantry[h * FOODS.length + k]!;
+  let pantry = 0,
+    foods = 0;
+  for (let k = 0; k < FOODS.length; k++) {
+    const x = houses.pantry[h * FOODS.length + k]!;
+    pantry += x;
+    if (x > 0) foods++;
+  }
+  // (Their table, P4: the foods their pantry holds; one food alone weighs only where others of the town eat of many.)
+  if ((foods === 1 && fareMost(place, today) >= FARE_MANY_FOODS) || foods >= FARE_MANY_FOODS)
+    out.push({
+      bit: 0,
+      cond: COND.fare,
+      size: foods === 1 ? FARE_ONE : FARE_MANY,
+      days: null,
+      ...(houses.home[h]! >= 0 ? { src: srcLot(houses.home[h]!) } : {}),
+    });
+  // (What they take and need, P4.)
+  if (
+    ageOf(p, i, place.t) >= fk.life.adulthood &&
+    placeTakes(place, p.id[i]!, DRINK.get(place)?.d.share ?? 0)
+  )
+    out.push({ bit: 0, cond: COND.craving, size: CRAVING_MOOD, days: null });
   if (pantry >= houses.members[h]! * fk.daily * FETCH_DAYS)
     out.push({ bit: MOOD.pantry, size: 15 * leans(temper.thrifty), days: null });
   if (p.friend[i])
@@ -7033,6 +7114,7 @@ function tickCx(world: World, place: Place, f: Frame) {
     visitor,
     zoned,
     post,
+    drink: placeDrink(world, place),
     // (The last come for company to each meeting place this tick, as `visitor` is the square's: O2.)
     visitAt: zoned?.meets.length ? new Map<number, number>() : null,
     // (Tiers: how far into their stride the tick a turn is at stands (`base`), how far past that tick a turn that goes on
@@ -8011,7 +8093,9 @@ function turnOf(cx: TickCx, i: number, k: number, wk: number): void {
           ticksWorth(hoursAt(p, i, tradeKind(doing))) *
           wk *
           // (At their own building with no bench left there for them: at the yard and the door. O4.)
-          (at > 0 && cAt[i] === p.work[i] && benchless(place)[i] ? BENCHLESS_WORTH : 1),
+          (at > 0 && cAt[i] === p.work[i] && benchless(place)[i] ? BENCHLESS_WORTH : 1) *
+          // (Needing what they take: their share of the work its land loses to it. P4.)
+          (cx.drink.share && placeTakes(place, cId[i]!, cx.drink.share) ? cx.drink.worth : 1),
       );
     let can = made;
     // (What its market will not let go is not to be had there.)

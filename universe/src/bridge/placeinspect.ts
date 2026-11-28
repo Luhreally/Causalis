@@ -68,6 +68,9 @@ export type PlaceInspectPerson = {
   readonly health: number;
   readonly healthWords: string | null;
   readonly mark: string | null;
+  /** P4. Their household's table (the foods its pantry holds), and what they take and need (null: nothing). */
+  readonly table: string;
+  readonly takes: string | null;
   readonly lack: number;
   /** Their skill at their trade, said short ("skilled, 1,240 h"), and in full. */
   readonly skill: string | null;
