@@ -565,6 +565,33 @@ function unpackFloats(f: FloatColumn): number[] {
  * by their numbers there, and it is read with them.
  */
 export function packList(values: readonly unknown[], words?: Words): Packed {
+  const steps = packSteps(values, words, Infinity);
+  for (;;) {
+    const r = steps.next();
+    if (r.done) return r.value;
+  }
+}
+
+/** How many values a step of packListSteps reads at the most where it reads them one by one. */
+const STEP_VALUES = 16384;
+
+/**
+ * packList, a step yielded after each of its columns and every so many values it reads one by one: what it returns is what
+ * packList gives, letter for letter (it is packList). A save packs a store's long lists so, where packing one whole was a
+ * step of 0.1 to 0.4 s inside a pump (history.events, town.fabric).
+ */
+export function packListSteps(
+  values: readonly unknown[],
+  words?: Words,
+): Generator<void, Packed, void> {
+  return packSteps(values, words, STEP_VALUES);
+}
+
+function* packSteps(
+  values: readonly unknown[],
+  words: Words | undefined,
+  every: number,
+): Generator<void, Packed, void> {
   // (A long list of small whole numbers, as most of a late save's are, told so in one look at each: kept as any
   // list of whole numbers is.)
   if (values.length >= 64 && smallInts(values)) {
@@ -579,6 +606,7 @@ export function packList(values: readonly unknown[], words?: Words): Packed {
     shapes: string[][] = [];
   let seen = 0;
   for (let j = 0; j < n; j++) {
+    if (j % every === every - 1) yield;
     const v = values[j];
     let k = RAW;
     if (typeof v === "number")
@@ -609,46 +637,13 @@ export function packList(values: readonly unknown[], words?: Words): Packed {
   }
   if (seen & (1 << INT)) packInts(of<number>(INT), out);
   if (seen & (1 << STR)) out.s = packStrings(of<string>(STR), words);
-  if (seen & (1 << OBJ)) packObjects(of<Record<string, unknown>>(OBJ), shapes, out, words);
-  if (seen & (1 << ARR)) packArrays(of<unknown[]>(ARR), out, words);
+  if (seen & ((1 << INT) | (1 << STR))) yield;
+  if (seen & (1 << OBJ))
+    yield* packObjects(of<Record<string, unknown>>(OBJ), shapes, out, words, every);
+  if (seen & (1 << ARR)) yield* packArrays(of<unknown[]>(ARR), out, words, every);
   if (seen & (1 << RAW)) out.r = of<unknown>(RAW);
   if (seen & (1 << FLOAT)) out.f = packFloats(of<number>(FLOAT));
   return out as Packed;
-}
-
-/**
- * packList of one value, a step yielded after each of its parts: a plain object's each key, a short list's each item, and so
- * down. What it returns is what packList([value]) would, letter for letter; a save packs a store of long columns so, a column at
- * a time, where packing it whole was one step of 0.3 s and more (town.fabric at 1,300).
- */
-export function* packOneSteps(value: unknown): Generator<void, Packed, void> {
-  if (typeof value === "object" && value !== null && !(value instanceof Float64Array)) {
-    if (Array.isArray(value)) {
-      // (As packArrays packs one list of no more than TUPLE: its length, then a column for each place.)
-      if (value.length <= TUPLE) {
-        const lengths = new Varints(1),
-          t: Packed[] = [];
-        lengths.push(value.length);
-        for (let j = 0; j < value.length; j++) {
-          t.push(yield* packOneSteps(value[j]));
-          yield;
-        }
-        return { n: 1, a: lengths.text(), t } as unknown as Packed;
-      }
-    } else {
-      // (As packObjects packs one object of one shape: its keys, then a column for each.)
-      const keys = plainKeys(value);
-      if (keys) {
-        const cols: Packed[] = [];
-        for (const key of keys) {
-          cols.push(yield* packOneSteps((value as Record<string, unknown>)[key]));
-          yield;
-        }
-        return { n: 1, o: [keys], c: [cols] } as unknown as Packed;
-      }
-    }
-  }
-  return packList([value]);
 }
 
 /** Whether every value is a whole number of 31 bits or fewer either way (so a whole number packList keeps as one). */
@@ -661,18 +656,20 @@ function smallInts(values: readonly unknown[]): boolean {
 }
 
 /** Objects by shape (their keys, in order), each shape's values a column for each key. */
-function packObjects(
+function* packObjects(
   objects: readonly Record<string, unknown>[],
   keysOf: readonly string[][],
   out: Record<string, unknown>,
-  words?: Words,
-): void {
+  words: Words | undefined,
+  every: number,
+): Generator<void, void, void> {
   const shapes: string[][] = [],
     shapeAt = new Map<string, number>(),
     columns: unknown[][][] = [],
     marks = new Varints(objects.length);
   let last = -1;
   for (let j = 0; j < objects.length; j++) {
+    if (j % every === every - 1) yield;
     const v = objects[j]!,
       keys = keysOf[j]!;
     let s = last;
@@ -693,7 +690,16 @@ function packObjects(
   // (By their numbers in the words given: each list of a block need not spell its keys.)
   out.o = words ? shapes.map((keys) => keys.map((key) => words.idOf(key))) : shapes;
   if (shapes.length > 1) out.g = marks.text();
-  out.c = columns.map((cols) => cols.map((col) => packList(col, words)));
+  const c: Packed[][] = [];
+  for (const cols of columns) {
+    const packed: Packed[] = [];
+    for (const col of cols) {
+      packed.push(yield* packSteps(col, words, every));
+      yield;
+    }
+    c.push(packed);
+  }
+  out.c = c;
 }
 
 function sameKeys(a: readonly string[], b: readonly string[]): boolean {
@@ -706,11 +712,12 @@ function sameKeys(a: readonly string[], b: readonly string[]): boolean {
  * Arrays as their lengths and their items: short ones a column for each place (the first items of
  * all, then the second …), as pairs and rows of counts are read; long ones as one list.
  */
-function packArrays(
+function* packArrays(
   arrays: readonly unknown[][],
   out: Record<string, unknown>,
-  words?: Words,
-): void {
+  words: Words | undefined,
+  every: number,
+): Generator<void, void, void> {
   const lengths = new Varints(arrays.length);
   let most = 0,
     total = 0;
@@ -725,18 +732,23 @@ function packArrays(
     // (One array is its own items: a store's long column, not copied.)
     // (An array of numbers made for it has none: asking of each place in one whether it is there is slow.)
     if (arrays.length === 1 && (arrays[0] instanceof Float64Array || !hasHoles(arrays[0]!))) {
-      out.e = packList(arrays[0]!, words);
+      out.e = yield* packSteps(arrays[0]!, words, every);
       return;
     }
     const items = new Array<unknown>(total);
     let at = 0;
     for (const a of arrays) for (let j = 0; j < a.length; j++) items[at++] = a[j];
-    out.e = packList(items, words);
+    out.e = yield* packSteps(items, words, every);
     return;
   }
   const places: unknown[][] = Array.from({ length: most }, () => []);
   for (const a of arrays) for (let j = 0; j < a.length; j++) places[j]!.push(a[j]);
-  out.t = places.map((place) => packList(place, words));
+  const t: Packed[] = [];
+  for (const place of places) {
+    t.push(yield* packSteps(place, words, every));
+    yield;
+  }
+  out.t = t;
 }
 
 /** Whether an array has holes (which a copy reads as undefined). */
