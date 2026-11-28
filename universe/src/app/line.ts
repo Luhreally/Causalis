@@ -17,6 +17,7 @@ import { LineSound } from "./line-sound.ts";
 import { el, type PlaceLoading } from "../ui/index.ts";
 import { LineHud } from "../ui/line-hud.ts";
 import { LineGuide } from "../ui/line-guide.ts";
+import { cellPicture } from "../ui/line-cell.ts";
 import { LinePages, fact, para, type LinePage } from "../ui/line-pages.ts";
 import {
   FIELD_W,
@@ -58,6 +59,9 @@ import {
   swimSpeed,
   wayOf,
   whatNow,
+  PARTS,
+  partEffects,
+  type PartId,
   type Daughter,
   type Gates,
   type LineFacts,
@@ -84,7 +88,7 @@ export type LineFlow = {
 
 /** A saga as the page keeps it (host/saga.ts keeps it as it is given). */
 type SagaData = {
-  readonly v: 1;
+  readonly v: 2;
   readonly digest: string;
   /** The world's clock when it was begun (s), and the line asked for (null: the world's first cells). */
   readonly began: number;
@@ -276,6 +280,10 @@ export function installLine(d: LineDeps): LineFlow {
     return newDrop(block, risen);
   };
   /** The first kind a line begins as: the drop's first small cells that swim after what floats (else its rock-eaters). */
+  const wayKind = (t: Traits) => {
+    const k = kindOf(wayOf(t));
+    return k >= 0 ? k : 0;
+  };
   const firstKind = () => {
     const kinds = plan!.drop!.kinds;
     return kinds.find((k) => k.way === "eater") ?? kinds.find((k) => k.way === "rock") ?? kinds[0]!;
@@ -294,7 +302,7 @@ export function installLine(d: LineDeps): LineFlow {
       const k = firstKind(),
         first = firstTraits(k, k.pace ?? 1);
       saga = {
-        v: 1,
+        v: 2,
         digest: facts.digest,
         began: d.client.status?.t ?? 0,
         from,
@@ -393,8 +401,11 @@ export function installLine(d: LineDeps): LineFlow {
               ? ` (the forebears of ${line.name} never did)`
               : "";
       b.dataset.daughter = String(i);
+      const kindColour = plan?.drop?.kinds[wayKind(t)]?.color,
+        fill = kindColour ? `rgb(${kindColour.map((v) => Math.round(v * 255)).join(",")})` : undefined;
       b.append(
-        el("strong", "", `${dt.took ? "✨ " : ""}Daughter ${i + 1}${forebears}`),
+        cellPicture(t, dt.part?.gained ? dt.part.id : null, fill),
+        el("strong", "", `${dt.took ? "✨ " : dt.part?.gained ? "🧩 " : ""}Daughter ${i + 1}${forebears}`),
         el("span", "line-daughter-nums", `${t.size.toFixed(1)} µm across · ${speedOf(t).toFixed(1)} µm a second`),
         ...dt.reasons.map((r) => el("span", "line-daughter-why", r)),
       );
@@ -818,6 +829,15 @@ export function installLine(d: LineDeps): LineFlow {
               .join(", "),
           ),
           fact("Its skin", `${f.membrane} membranes, as all life on this world`),
+          fact(
+            "Its parts",
+            Object.keys(t.parts ?? {}).length
+              ? Object.entries(t.parts ?? {})
+                  .map(([id, n]) => `${PARTS[id as PartId].name}${n! > 1 ? " (grown larger)" : ""}: ${PARTS[id as PartId].does}`)
+                  .join("; ")
+              : "none yet: each daughter may grow one",
+          ),
+          fact("It eats", t.nucleus ? "specks, and cells it takes in (both: a grazer and a hunter)" : t.base === "rock" ? "its grain's chemistry, and specks" : "specks (a grazer)"),
           fact("Its line", L(`${s.gens.length + 1} generations so far ›`, "line")),
           fact("Its world", L("What its seas are, and its dawn ›", "world")),
           fact("The drop", L("What lives about it ›", "drop")),
@@ -1025,7 +1045,7 @@ export function installLine(d: LineDeps): LineFlow {
       aspect = innerWidth / Math.max(1, innerHeight),
       // (As the line grows the eye eases out: it shows some twenty-four of the cell held across, never less than 48 µm nor
       // more than the drop, eased over a second and a half: growth is felt, nothing leaps.)
-      want = Math.max(48, Math.min(170, 24 * (traits?.size ?? 2))),
+      want = Math.max(48, Math.min(170, 24 * (traits?.size ?? 2) * (traits ? partEffects(traits).sight : 1))),
       k0 = across ? 1 - Math.exp(-Math.min(0.1, dt) / 1.5) : 1,
       wide = (across += (want - across) * k0) * (12 / 180),
       far = Math.max(wide / (2 * tan), (wide * 0.75) / (2 * tan * aspect)) * hud.zoom,
@@ -1092,7 +1112,7 @@ export function installLine(d: LineDeps): LineFlow {
     if (hand.caught > 0 && guide.first("caught")) hud.say("Caught! Swim hard, or dart (E), to pull free", false);
     if (c) {
       const near = threatOf(drop, c);
-      if (near !== null && near < 34) {
+      if (near !== null && near < 34 * partEffects(traits).sight) {
         if (guide.first("danger")) hud.say("Something bigger is near: flee! Dart away with ⚡ (E)", false);
         noises.play("danger");
       }
@@ -1182,7 +1202,7 @@ export function installLine(d: LineDeps): LineFlow {
         hud.show();
         on = true;
         const resumable =
-          kept.find((s) => s.data?.v === 1 && s.data.digest === f.digest && s.data.from === from) ?? null;
+          kept.find((s) => s.data?.v === 2 && s.data.digest === f.digest && s.data.from === from) ?? null;
         if (!p.drop) {
           drop = null;
           hand = null;

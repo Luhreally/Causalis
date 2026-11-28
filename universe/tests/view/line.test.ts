@@ -267,3 +267,47 @@ test("What now? reads the stage and says the next thing to do", () => {
   assert.match(whatNow({ ...base, choosing: true }), /daughter/);
   assert.match(whatNow({ ...base, gates: cellGates(WATER, RUNGS, 1900, 0.9) }), /nucleus/);
 });
+
+test("a daughter's change is a part one can see, made of what its world allows, its worth and cost from its physics", async () => {
+  const { PARTS, partEffects, partsAllowed } = await import("../../src/view/line.ts");
+  // (What its chemistry cannot make never comes: no spine or poison in oil or liquid methane, no eyespot without a pigment light drives.)
+  assert.ok(!partsAllowed({ liquid: "methane", pigment: "chlorophyll" }).some((p) => p === "spike" || p === "toxin"));
+  assert.ok(!partsAllowed({ liquid: "water", pigment: "polyimine" }).includes("eyespot"));
+  assert.ok(partsAllowed({ liquid: "water", pigment: "chlorophyll" }).length === Object.keys(PARTS).length);
+  const methane = { liquid: "methane", pigment: "polyimine" } as const;
+  let t = first;
+  const seen = new Set<string>();
+  for (let gen = 0; gen < 40; gen++) {
+    const ds = daughtersOf(t, "w", 2, gen, cellGates(WATER, RUNGS, 3700, 0.9), methane);
+    for (const d of ds.slice(0, 2)) {
+      assert.ok(d.part, "each plain daughter changes a part");
+      assert.ok(!["spike", "toxin", "eyespot"].includes(d.part!.id), `${d.part!.id} in liquid methane`);
+      seen.add(d.part!.id);
+      assert.match(d.reasons[0]!, /grew|lost|larger/i);
+    }
+    assert.deepEqual(ds, daughtersOf(t, "w", 2, gen, cellGates(WATER, RUNGS, 3700, 0.9), methane), "the same draws");
+    t = ds[gen % 2]!.traits;
+  }
+  assert.ok(seen.size >= 4, `parts seen: ${[...seen].join(", ")}`);
+  // (A whip pushes harder: faster, dearer to keep; a spine drags.)
+  const fl = partEffects({ parts: { flagellum: 1 } }),
+    sp = partEffects({ parts: { spike: 1 } });
+  assert.ok(fl.speed > 1 && fl.upkeep > 1 && sp.speed < 1 && sp.engulf > 1);
+  assert.ok(swimSpeed({ ...first, parts: { flagellum: 2 } }, WATER) > swimSpeed(first, WATER) * 1.5);
+});
+
+test("a cell with a toxin is let go by the hunter that grips it", () => {
+  const s = newDrop(block(), [true, false, true, false]),
+    t = { ...first, parts: { toxin: 1 } },
+    h = holdDrop(s, t, swimSpeed(t, WATER), { x: 90, y: 60 }),
+    c = heldCell(s, h)!,
+    o = s.cells.find((x) => x.way === "hunter")!;
+  o.speed = 0;
+  for (let i = 0; i < 60; i++) {
+    o.x = c.x;
+    o.y = c.y;
+    stepHeld(s, h);
+  }
+  assert.equal(h.ended, "");
+  assert.match(h.told?.words ?? "", /toxin/);
+});

@@ -31,7 +31,7 @@ import {
   type Cell,
   type DropState,
 } from "./drop.ts";
-import { wayOf, type Traits } from "./line.ts";
+import { partEffects, wayOf, type Traits } from "./line.ts";
 
 /**
  * Where the food of the drop about a held cell comes from, and how much (Live a Line, its food made playable from first
@@ -172,11 +172,11 @@ export function heldCell(s: DropState, h: DropHand): Cell | null {
 }
 
 /** The cell nearest the one held that it could take in now (null: none within reach). */
-export function preyOf(s: DropState, c: Cell): Cell | null {
+export function preyOf(s: DropState, c: Cell, most = 0.5): Cell | null {
   let best: Cell | null = null,
     bd = Infinity;
   for (const o of s.cells) {
-    if (o === c || o.size >= c.size * 0.5 || o.dividing > 0) continue;
+    if (o === c || o.size >= c.size * most || o.dividing > 0) continue;
     const dx = gap(c.x, o.x, FIELD_W),
       dy = gapY(s, c.y, o.y),
       d = Math.sqrt(dx * dx + dy * dy) - (c.size + o.size) / 2;
@@ -253,7 +253,8 @@ export function stepHeld(s: DropState, h: DropHand): void {
     cdt = dt * kp,
     w = worth(c.size),
     way = c.way,
-    told = (words: string, good = true) => (h.told = { words, t: s.t, good });
+    told = (words: string, good = true) => (h.told = { words, t: s.t, good }),
+    fx = partEffects(h.traits);
   if (h.dividing) {
     // (Its daughters waiting to be chosen: it stays as it is.)
     s.cells.push(c);
@@ -268,11 +269,11 @@ export function stepHeld(s: DropState, h: DropHand): void {
     else told(`Not yet: ${Math.round((c.energy / (2 * w)) * 100)}% of the way to dividing`, false);
   } else if (act === "dart") {
     if (c.energy > w * 0.05) {
-      h.dart = DART;
+      h.dart = DART * fx.dart;
       h.bask = false;
     } else told("Too little left in you to dart", false);
   } else if (act === "engulf") {
-    const prey = h.traits.nucleus ? preyOf(s, c) : null;
+    const prey = h.traits.nucleus ? preyOf(s, c, fx.prey) : null;
     if (!prey) told(h.traits.nucleus ? "None near small enough to take in" : "Your line has no nucleus to take in another", false);
     else {
       s.cells.splice(s.cells.indexOf(prey), 1);
@@ -305,7 +306,7 @@ export function stepHeld(s: DropState, h: DropHand): void {
   c.y = s.habitat === "soil" ? wrap(y, FIELD_H) : placeY(s, y);
   // —— What it takes in: the food it touches; light while it basks; its grain's chemistry, where its line lives by the rock.
   let gain = 0;
-  const reach = (c.size / 2 + 1) ** 2;
+  const reach = (c.size / 2 + 1 + fx.reach) ** 2;
   for (let i = s.motes.length - 1; i >= 0; i--) {
     const m = s.motes[i]!,
       dx = gap(c.x, m.x, FIELD_W),
@@ -326,7 +327,7 @@ export function stepHeld(s: DropState, h: DropHand): void {
   h.gained += gain;
   // —— What it spends: to keep alive, by its size, and to go, as its speed's square against its way's usual.
   const base = SPEED[way] * kp;
-  c.energy -= (HELD_UPKEEP * UPKEEP[way] * w + 0.002 * w * (v / Math.max(0.1, base)) ** 2) * cdt;
+  c.energy -= (HELD_UPKEEP * fx.upkeep * UPKEEP[way] * w + 0.002 * w * (v / Math.max(0.1, base)) ** 2) * cdt;
   c.age += cdt;
   for (const m of c.meals) m.age += dt;
   c.meals = c.meals.filter((m) => m.age < 8);
@@ -341,8 +342,15 @@ export function stepHeld(s: DropState, h: DropHand): void {
     if (d2 < (o.size / 2) ** 2 && o.full <= 0) {
       // (In its grip: wrapped a little more each moment, hurt; held long enough, taken in.)
       gripped = true;
-      h.caught += cdt;
+      h.caught += cdt / fx.engulf;
       h.hurt = 1;
+      if (fx.toxin && h.caught > 0.3) {
+        // (Its poison: the hunter lets go, and keeps off it a while.)
+        o.full = w * 0.6;
+        o.heading += Math.PI;
+        told("Your toxin made it let go");
+        continue;
+      }
       if (h.caught >= ENGULF) {
         h.ended = "taken";
         h.by = s.kinds[o.kind]?.name ?? "a hunting cell";

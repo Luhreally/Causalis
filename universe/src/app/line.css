@@ -532,6 +532,10 @@ body.lining > *:not(#app) {
 .line-hud .line-daughter.took {
   border-color: #f2c14e;
 }
+.line-cell-pic {
+  float: right;
+  margin: 0 0 4px 8px;
+}
 .line-daughter-nums {
   color: #9ee7ff;
   font-size: 13px;

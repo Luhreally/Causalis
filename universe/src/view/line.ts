@@ -57,6 +57,8 @@ export type Traits = {
   readonly nucleus: boolean;
   readonly light: boolean;
   readonly together: boolean;
+  /** The parts it has grown (absent: none). */
+  readonly parts?: Parts;
 };
 
 /** The way a cell of these traits lives in the drop (and is drawn as): the last way it took up. */
@@ -91,7 +93,7 @@ export function mediumOf(f: Pick<LineFacts, "liquid">): { mu: number; rho: numbe
  */
 export function swimSpeed(t: Traits, f: Pick<LineFacts, "liquid">): number {
   const k = Math.sqrt(WATER.mu / mediumOf(f).mu);
-  return t.speed * Math.min(2.5, Math.max(0.3, k));
+  return t.speed * Math.min(2.5, Math.max(0.3, k)) * partEffects(t).speed;
 }
 
 /** The Reynolds number of a cell going at its speed: under one, inertia is nothing to it (it stops when it stops pushing). */
@@ -202,8 +204,87 @@ export function lineDraw(digest: string, saga: number, gen: number, child: numbe
 }
 const normalOf = (u: (k: number) => number, k: number) => (u(k) + u(k + 1) + u(k + 2) - 1.5) * 2;
 
+// —— Its parts ——————————————————————————————————————————————————————————————————————————————————————————————————————
+// (2026-11-28, the owner's "fun pizaz": a daughter's change shown as a part one can see.) Each part's worth and its cost
+// come from what a cell is at its size in its liquid: at a Reynolds number far under one a swimmer's speed is its thrust
+// against its drag (Stokes: drag = 6πμrv), so a longer whip of a flagellum pushes harder and a spike or a thick wall
+// drags; every part is made and kept of what the cell gathers, so each costs to keep. A part a world's chemistry cannot
+// make never comes: an eyespot needs a pigment its light can drive; a spike of mineral, or a poison that dissolves, needs
+// a liquid that carries them (water, or water with acid or ammonia in it, not oil or liquid methane).
+
+export type PartId = "flagellum" | "cilia" | "spike" | "wall" | "toxin" | "eyespot" | "mouth" | "filter";
+/** A cell's parts, each at a level (1 or 2; absent: none). */
+export type Parts = Readonly<Partial<Record<PartId, number>>>;
+
+/** Each part: its name, what it does for a level of it (speed and upkeep as factors), and its words. */
+export const PARTS: Readonly<
+  Record<PartId, { readonly name: string; readonly speed: number; readonly upkeep: number; readonly does: string }>
+> = {
+  flagellum: { name: "a flagellum", speed: 0.3, upkeep: 0.15, does: "a whip it beats to push itself on: faster" },
+  cilia: { name: "cilia", speed: 0.05, upkeep: 0.08, does: "a fringe of tiny oars: its darts last longer" },
+  spike: { name: "spikes", speed: -0.08, upkeep: 0.06, does: "spines of mineral: a hunter takes longer to swallow it" },
+  wall: { name: "a tougher wall", speed: -0.06, upkeep: 0.12, does: "a thicker skin: harder to wrap and swallow" },
+  toxin: { name: "a toxin", speed: 0, upkeep: 0.2, does: "a poison in its skin: a hunter that grips it lets go" },
+  eyespot: { name: "an eyespot", speed: 0, upkeep: 0.05, does: "a patch of pigment that feels the light: it sees further" },
+  mouth: { name: "a bigger mouth", speed: -0.03, upkeep: 0.05, does: "it takes in food from further off, and larger cells" },
+  filter: { name: "a filter", speed: -0.12, upkeep: 0.1, does: "a sieve: it catches specks from about it as it goes" },
+};
+const PART_IDS = Object.keys(PARTS) as PartId[];
+const POLAR = new Set(["water", "acid-water", "ammonia-water"]);
+
+/** The parts a world's chemistry can make, for a cell (a mouth that takes in cells only once it has a nucleus). */
+export function partsAllowed(f: Pick<LineFacts, "liquid" | "pigment">, _t?: Traits): PartId[] {
+  return PART_IDS.filter((p) => {
+    if (p === "eyespot") return !!f.pigment && f.pigment !== "polyimine";
+    if (p === "spike" || p === "toxin") return POLAR.has(f.liquid);
+    return true;
+  });
+}
+
+/** What a cell's parts come to: its speed and upkeep as factors, how long it takes to swallow, its reach and sight. */
+export function partEffects(t: Pick<Traits, "parts">): {
+  speed: number;
+  upkeep: number;
+  engulf: number;
+  reach: number;
+  sight: number;
+  dart: number;
+  toxin: boolean;
+  prey: number;
+} {
+  const p = t.parts ?? {},
+    n = (id: PartId) => p[id] ?? 0;
+  let speed = 1,
+    upkeep = 1;
+  for (const id of PART_IDS) {
+    speed *= 1 + PARTS[id].speed * n(id);
+    upkeep += PARTS[id].upkeep * n(id);
+  }
+  return {
+    speed: Math.max(0.3, speed),
+    upkeep,
+    engulf: 1 + 0.5 * n("wall") + 0.35 * n("spike"),
+    reach: 1.2 * n("mouth") + 1.5 * n("filter"),
+    sight: 1 + 0.25 * n("eyespot"),
+    dart: 1 + 0.5 * n("cilia"),
+    toxin: n("toxin") > 0,
+    prey: 0.5 + 0.1 * n("mouth"),
+  };
+}
+
+/** A part gained or lost by a daughter, in words with what it does and costs. */
+function partWords(id: PartId, level: number, gained: boolean): string {
+  const d = PARTS[id],
+    sp = Math.round(d.speed * 100),
+    up = Math.round(d.upkeep * 100);
+  if (!gained) return `It lost ${d.name}: ${up}% cheaper to keep${sp ? `, ${sp > 0 ? `${sp}% slower` : `${-sp}% faster`}` : ""}`;
+  return `${level > 1 ? "Its" : "It grew"} ${level > 1 ? `${d.name.replace(/^an? /, "")} grew larger` : d.name}: ${d.does}${sp ? `; ${sp > 0 ? `${sp}% faster` : `${-sp}% slower`} through its liquid's drag` : ""}; ${up}% more to keep`;
+}
+
 export type Daughter = {
   readonly traits: Traits;
+  /** The part it gained or lost against its mother (null: none). */
+  readonly part: { readonly id: PartId; readonly gained: boolean } | null;
   /** What it took up that its mother had not (null: none). */
   readonly took: "light" | "nucleus" | "together" | null;
   /** How it differs, each with what it does: from what the drop and the world are. */
@@ -260,6 +341,26 @@ export function daughtersOf(
       speed: Math.round(Math.min(40, Math.max(0.5, speed0)) * 100) / 100,
     };
     const got = child === 2 ? took : null;
+    // (Each plain daughter changes one part, gained or lost, by its own draws: the two seldom the same.)
+    let part: Daughter["part"] = null;
+    if (child < 2) {
+      const allowed = partsAllowed(liquid, t).filter((p) => (t.parts?.[p] ?? 0) < 2),
+        have = PART_IDS.filter((p) => (t.parts?.[p] ?? 0) > 0),
+        lose = have.length > 0 && (u(8) < 0.2 || !allowed.length);
+      if (lose) {
+        const id = have[Math.floor(u(9) * have.length)]!,
+          level = (t.parts?.[id] ?? 1) - 1,
+          next = { ...t.parts };
+        if (level > 0) next[id] = level;
+        else delete next[id];
+        t = { ...t, parts: next };
+        part = { id, gained: false };
+      } else if (allowed.length) {
+        const id = allowed[(Math.floor(u(9) * allowed.length) + child * 3) % allowed.length]!;
+        t = { ...t, parts: { ...t.parts, [id]: (t.parts?.[id] ?? 0) + 1 } };
+        part = { id, gained: true };
+      }
+    }
     // (What it took up changes what it is: a cell with a nucleus is some ten times as wide as one without; one that kept a
     // light-eater half again; cells together several times the one.)
     if (got === "nucleus")
@@ -267,7 +368,13 @@ export function daughtersOf(
     else if (got === "light") t = { ...t, light: true, size: Math.round(t.size * (1.3 + 0.4 * u(6)) * 100) / 100 };
     else if (got === "together")
       t = { ...t, together: true, size: Math.round(t.size * (2.5 + 1.5 * u(6)) * 100) / 100, speed: t.speed * 0.7 };
-    out.push({ traits: t, took: got, reasons: reasonsOf(mother, t, got, liquid) });
+    const why = reasonsOf(mother, { ...t, parts: mother.parts }, got, liquid);
+    out.push({
+      traits: t,
+      took: got,
+      part,
+      reasons: part ? [partWords(part.id, t.parts?.[part.id] ?? 0, part.gained), ...why.filter((w) => w !== "Much as its mother was")] : why,
+    });
   }
   return out;
 }
