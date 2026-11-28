@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { FIELD_H, FIELD_W, newDrop, stepDrop, worth, type DropState } from "../../src/view/drop.ts";
-import { aboutHeld, divideHeld, heldCell, holdDrop, stepHeld } from "../../src/view/drop-held.ts";
+import { FIELD_H, FIELD_W, MOTE, newDrop, stepDrop, worth, type DropState } from "../../src/view/drop.ts";
+import { CRUMB, aboutHeld, divideHeld, heldCell, holdDrop, stepHeld } from "../../src/view/drop-held.ts";
 import {
   cellDone,
   cellGates,
@@ -170,14 +170,14 @@ test("a drop no hand is in lives as before; the cell held goes only as far as it
   const stopped = c.x;
   stepHeld(s, h);
   assert.equal(c.x, stopped, "let go, it stops at once");
-  // Food in its way is taken in.
+  // Food in its way is taken in (each speck of a drop about a held cell a crumb: view/drop-held.ts CRUMB).
   const e0 = c.energy;
   s.motes.push({ x: c.x + 2, y: c.y, vx: 0, vy: 0 }, { x: c.x + 4, y: c.y, vx: 0, vy: 0 });
   h.mx = 1;
   run(s, 20, (x) => stepHeld(x, h));
   assert.equal(h.ate, 2);
-  assert.ok(c.energy > e0 + 2, `${e0} → ${c.energy}`);
-  assert.ok(h.gained >= 3 - 1e-9);
+  assert.ok(c.energy > e0 + 2 * MOTE * CRUMB * 0.8, `${e0} → ${c.energy}`);
+  assert.ok(h.gained >= 2 * MOTE * CRUMB - 1e-9);
 });
 
 test("a hunting cell takes the cell held where it reaches it; divided, the hand goes on in the daughter chosen", () => {
@@ -188,9 +188,38 @@ test("a hunting cell takes the cell held where it reaches it; divided, the hand 
   hunter.x = c.x;
   hunter.y = c.y;
   hunter.full = 0;
+  hunter.speed = 0;
+  // (Gripped, it is hurt and slowed, not taken at a touch; held the better part of a second, it is taken in.)
   stepHeld(s, h);
+  assert.equal(h.ended, "");
+  assert.ok(h.caught > 0 && h.hurt === 1);
+  for (let i = 0; i < 40 && !h.ended; i++) {
+    hunter.x = heldCell(s, h)?.x ?? hunter.x;
+    hunter.y = heldCell(s, h)?.y ?? hunter.y;
+    stepHeld(s, h);
+  }
   assert.equal(h.ended, "taken");
   assert.ok(!heldCell(s, h));
+
+  // Gripped and pulled free at once, by a dart: it lives, and the grip loosens.
+  const f = newDrop(block(), [true, false, true, false]),
+    fh = holdDrop(f, first, swimSpeed(first, WATER), { x: 90, y: 60 }),
+    fc = heldCell(f, fh)!,
+    fo = f.cells.find((x) => x.way === "hunter")!;
+  fo.x = fc.x;
+  fo.y = fc.y;
+  fo.full = 0;
+  fo.speed = 0;
+  stepHeld(f, fh);
+  assert.ok(fh.caught > 0);
+  fh.act = "dart";
+  fh.mx = 1;
+  for (let i = 0; i < 60; i++) {
+    fo.speed = 0;
+    stepHeld(f, fh);
+  }
+  assert.equal(fh.ended, "", "pulled free, it lives");
+  assert.ok(fh.caught < 0.3, `the grip loosens (${fh.caught})`);
 
   const t = newDrop(block(), [true, false, false, false]),
     g = holdDrop(t, first, swimSpeed(first, WATER), { x: 40, y: 40 }),
@@ -237,4 +266,74 @@ test("What now? reads the stage and says the next thing to do", () => {
   assert.match(whatNow({ ...base, energy: 2 * worth(first.size) }), /Divide/);
   assert.match(whatNow({ ...base, choosing: true }), /daughter/);
   assert.match(whatNow({ ...base, gates: cellGates(WATER, RUNGS, 1900, 0.9) }), /nucleus/);
+});
+
+test("a daughter's change is a part one can see, made of what its world allows, its worth and cost from its physics", async () => {
+  const { PARTS, partEffects, partsAllowed } = await import("../../src/view/line.ts");
+  // (What its chemistry cannot make never comes: no spine or poison in oil or liquid methane, no eyespot without a pigment light drives.)
+  assert.ok(!partsAllowed({ liquid: "methane", pigment: "chlorophyll" }).some((p) => p === "spike" || p === "toxin"));
+  assert.ok(!partsAllowed({ liquid: "water", pigment: "polyimine" }).includes("eyespot"));
+  assert.ok(partsAllowed({ liquid: "water", pigment: "chlorophyll" }).length === Object.keys(PARTS).length);
+  const methane = { liquid: "methane", pigment: "polyimine" } as const;
+  let t = first;
+  const seen = new Set<string>();
+  for (let gen = 0; gen < 40; gen++) {
+    const ds = daughtersOf(t, "w", 2, gen, cellGates(WATER, RUNGS, 3700, 0.9), methane);
+    for (const d of ds.slice(0, 2)) {
+      assert.ok(d.part, "each plain daughter changes a part");
+      assert.ok(!["spike", "toxin", "eyespot"].includes(d.part!.id), `${d.part!.id} in liquid methane`);
+      seen.add(d.part!.id);
+      assert.match(d.reasons[0]!, /grew|lost|larger/i);
+    }
+    assert.deepEqual(ds, daughtersOf(t, "w", 2, gen, cellGates(WATER, RUNGS, 3700, 0.9), methane), "the same draws");
+    t = ds[gen % 2]!.traits;
+  }
+  assert.ok(seen.size >= 4, `parts seen: ${[...seen].join(", ")}`);
+  // (A whip pushes harder: faster, dearer to keep; a spine drags.)
+  const fl = partEffects({ parts: { flagellum: 1 } }),
+    sp = partEffects({ parts: { spike: 1 } });
+  assert.ok(fl.speed > 1 && fl.upkeep > 1 && sp.speed < 1 && sp.engulf > 1);
+  assert.ok(swimSpeed({ ...first, parts: { flagellum: 2 } }, WATER) > swimSpeed(first, WATER) * 1.5);
+});
+
+test("a cell with a toxin is let go by the hunter that grips it", () => {
+  const s = newDrop(block(), [true, false, true, false]),
+    t = { ...first, parts: { toxin: 1 } },
+    h = holdDrop(s, t, swimSpeed(t, WATER), { x: 90, y: 60 }),
+    c = heldCell(s, h)!,
+    o = s.cells.find((x) => x.way === "hunter")!;
+  o.speed = 0;
+  for (let i = 0; i < 60; i++) {
+    o.x = c.x;
+    o.y = c.y;
+    stepHeld(s, h);
+  }
+  assert.equal(h.ended, "");
+  assert.match(h.told?.words ?? "", /toxin/);
+});
+
+test("a cell with a nucleus calls a mate when it is full; the mate swims to it, and their young mix the two", () => {
+  const s = newDrop(block(), [true, false, false, false]),
+    t = { ...first, nucleus: true },
+    h = holdDrop(s, t, swimSpeed(t, WATER), { x: 90, y: 60 }),
+    c = heldCell(s, h)!;
+  c.energy = 2.1 * worth(t.size);
+  h.act = "divide";
+  stepHeld(s, h);
+  assert.ok(h.mate !== null && !h.dividing, "a mate called, not divided alone");
+  for (let i = 0; i < 30 * 12 && !h.dividing; i++) stepHeld(s, h);
+  assert.ok(h.dividing && h.mated, "the mate came, and the young are to be chosen");
+  const gates = cellGates(WATER, RUNGS, 3700, 0.9),
+    alone = daughtersOf(t, "w", 1, 0, gates, WATER),
+    both = daughtersOf(t, "w", 1, 0, gates, WATER, true);
+  assert.equal(both.length, alone.length + 1);
+  assert.ok(both.at(-1)!.mate && both.at(-1)!.part?.gained);
+  assert.deepEqual(both.slice(0, alone.length), alone, "the young of a mating are those of a division, and one more");
+  // (Without a nucleus, the same press divides it alone.)
+  const s2 = newDrop(block(), [true, false, false, false]),
+    h2 = holdDrop(s2, first, swimSpeed(first, WATER), { x: 90, y: 60 });
+  heldCell(s2, h2)!.energy = 2.1 * worth(first.size);
+  h2.act = "divide";
+  stepHeld(s2, h2);
+  assert.ok(h2.dividing && !h2.mated);
 });

@@ -23,6 +23,7 @@ import {
   gap,
   gapY,
   lightAt,
+  normal,
   placeY,
   stepDrop,
   worth,
@@ -30,7 +31,45 @@ import {
   type Cell,
   type DropState,
 } from "./drop.ts";
-import { wayOf, type Traits } from "./line.ts";
+import { partEffects, wayOf, type Traits } from "./line.ts";
+
+/**
+ * Where the food of the drop about a held cell comes from, and how much (Live a Line, its food made playable from first
+ * principles, 2026-11-28). Specks of food are not made out of the water: they come from a supply the world has. Where the
+ * drop has a mineral grain, its vent: what wells up there is fed on and broken down into specks about it. Where it has
+ * none, its lit water: what its light-eaters leak and shed, thickest nearest the light. The specks well up there at the
+ * rate the drop's own food sets (DropBlock.food, read off its world: host/inspect/small.ts), as many again as the whole
+ * drop's water brings, and drift off as every speck does; a held cell begins at that supply's edge, where the food is
+ * thick and the rivals that crowd the open water are few. Its rivals eat as they always did, each by its size and pace,
+ * sensing a speck only within 10 µm (view/drop.ts): no further than the one held can see one.
+ */
+export type Supply = { readonly x: number; readonly y: number; readonly r: number; readonly how: "vent" | "light" };
+export function supplyOf(s: DropState): Supply {
+  const g = s.grain;
+  if (g) return { x: g.x, y: g.y, r: g.r + 14, how: "vent" };
+  return { x: FIELD_W * 0.2, y: s.habitat === "soil" ? FIELD_H * 0.5 : FIELD_H * 0.12, r: 26, how: "light" };
+}
+/**
+ * Crumbs a second at the supply, for each of the drop's own food (its whole water brings six whole specks), and what a
+ * crumb is worth against a whole speck: what wells up is fine, broken down small.
+ */
+export const SUPPLY = 5,
+  CRUMB = 1 / 6;
+/** How near the supply's edge a held cell begins (µm), and how far from it the rivals keep at the start. */
+const START_OFF = 6,
+  CLEAR = 45;
+/** What the held cell spends to keep alive, against its kind's in the drop (a held cell is one of a line that has come through; it keeps for a minute or so unfed). */
+const HELD_UPKEEP = 0.4;
+
+/**
+ * How long a hunting cell must hold the cell held to take it in (s): a cell is wrapped and swallowed, not taken at a touch
+ * (engulfing takes the better part of a second at this size); pulled free first, it lives, hurt. How much faster a hunter
+ * that senses it closes on it (its lunge, as a hunter of the drop closes on its prey there), and how much slower the one
+ * held goes while it is gripped.
+ */
+export const ENGULF = 0.9,
+  LUNGE = 0.5,
+  GRIPPED = 0.55;
 
 /** How long a dart lasts (seconds of the drop's time), how much faster it goes, and how far a cell may reach to take one in (µm). */
 const DART = 1.2,
@@ -61,6 +100,12 @@ export type DropHand = {
   gained: number;
   /** Divide was pressed with enough gathered: its daughters wait to be chosen. */
   dividing: boolean;
+  /** The mate called (a cell's id, coming to it), and whether the division now waiting was a mating. */
+  mate: number | null;
+  mated: boolean;
+  /** Seconds it has been held in a hunter's grip (ENGULF: taken), and how fresh its last hurt is (1 … 0). */
+  caught: number;
+  hurt: number;
   /** How its life ended ("": it lives), and by what. */
   ended: "" | "taken" | "starved";
   by: string | null;
@@ -82,11 +127,25 @@ export function holdDrop(
   at: { x: number; y: number } | null = null,
   energy: number | null = null,
 ): DropHand {
+  // (A drop with a cell held is watched at a second of its own time a second: a cold world's chemistry, slower than a warm
+  // one's, is not played slower for it. Its kinds keep their paces against one another, as its world sets them.)
+  s.pace = 1;
   const kind = kindFor(s, t),
-    c = born(s, kind, null, at?.x ?? FIELD_W / 2, at?.y ?? FIELD_H * 0.45);
+    sup = supplyOf(s),
+    start = at ?? { x: wrap(sup.x + sup.r + START_OFF, FIELD_W), y: placeY(s, sup.y) },
+    c = born(s, kind, null, start.x, start.y);
+  if (!at)
+    // (At the supply's edge the rivals are few: those of the open water that crowd it are elsewhere in the drop.)
+    for (const o of s.cells) {
+      if (o.way !== "eater" && o.way !== "hunter") continue;
+      const dx = gap(o.x, start.x, FIELD_W),
+        dy = gapY(s, o.y, start.y);
+      if (dx * dx + dy * dy < CLEAR * CLEAR) o.x = wrap(o.x + FIELD_W / 2, FIELD_W);
+    }
   c.size = t.size;
   c.speed = speed;
-  c.energy = energy ?? worth(t.size) * 0.6;
+  // (As a daughter newly divided: half of the twice its worth its mother gathered.)
+  c.energy = energy ?? worth(t.size);
   c.marked = true;
   s.cells.push(c);
   return {
@@ -104,6 +163,10 @@ export function holdDrop(
     steered: 0,
     gained: 0,
     dividing: false,
+    mate: null,
+    mated: false,
+    caught: 0,
+    hurt: 0,
     ended: "",
     by: null,
   };
@@ -114,11 +177,11 @@ export function heldCell(s: DropState, h: DropHand): Cell | null {
 }
 
 /** The cell nearest the one held that it could take in now (null: none within reach). */
-export function preyOf(s: DropState, c: Cell): Cell | null {
+export function preyOf(s: DropState, c: Cell, most = 0.5): Cell | null {
   let best: Cell | null = null,
     bd = Infinity;
   for (const o of s.cells) {
-    if (o === c || o.size >= c.size * 0.5 || o.dividing > 0) continue;
+    if (o === c || o.size >= c.size * most || o.dividing > 0) continue;
     const dx = gap(c.x, o.x, FIELD_W),
       dy = gapY(s, c.y, o.y),
       d = Math.sqrt(dx * dx + dy * dy) - (c.size + o.size) / 2;
@@ -138,6 +201,21 @@ export function threatOf(s: DropState, c: Cell): number | null {
   return best;
 }
 
+/** Where the one held looks: toward the nearest hunter that could take it, else toward the nearest food (null: neither). */
+export function lookOf(s: DropState, c: Cell): { dx: number; dy: number } | null {
+  let best: { dx: number; dy: number; d: number } | null = null;
+  for (const o of s.cells) {
+    if (o.way !== "hunter" || c.size >= o.size * 0.5) continue;
+    const dx = gap(c.x, o.x, FIELD_W),
+      dy = gapY(s, c.y, o.y),
+      d = Math.hypot(dx, dy);
+    if (d < SENSED * 1.6 && (!best || d < best.d)) best = { dx, dy, d };
+  }
+  if (best) return best;
+  const f = foodOf(s, c);
+  return f && f.d < 40 ? f : null;
+}
+
 /** The nearest food to the one held: how far, and which way (µm; null: none within sight). */
 export function foodOf(
   s: DropState,
@@ -151,6 +229,28 @@ export function foodOf(
     if (d < 60 && (!best || d < best.d)) best = { d, dx, dy };
   }
   return best;
+}
+
+/** The supply's specks for a step: welling up about it, as the drop's own food sets. */
+function supply(s: DropState): void {
+  // (Every speck of the drop about a held cell is as small as what wells up: a sixth of a small cell's worth, to its
+  // rivals as to it. A speck the drop's water brings, or a cell falling apart, is the same.)
+  for (const m of s.motes) m.worth ??= MOTE * CRUMB;
+  const sup = supplyOf(s),
+    r = s.rnd,
+    n = s.food * SUPPLY * STEP * s.pace,
+    count = Math.floor(n) + (r() < n % 1 ? 1 : 0);
+  for (let i = 0; i < count; i++) {
+    const a = r() * Math.PI * 2,
+      d = sup.r * Math.sqrt(r());
+    s.motes.push({
+      x: wrap(sup.x + Math.cos(a) * d, FIELD_W),
+      y: placeY(s, sup.y + Math.sin(a) * d * (sup.how === "light" ? 0.5 : 1)),
+      vx: normal(r) * 0.3,
+      vy: normal(r) * 0.3,
+      worth: MOTE * CRUMB,
+    });
+  }
 }
 
 /**
@@ -167,12 +267,14 @@ export function stepHeld(s: DropState, h: DropHand): void {
   // (The rest of the drop goes on by its own step, the one held set aside while it does: nothing of it moves by itself.)
   s.cells.splice(at, 1);
   stepDrop(s);
+  supply(s);
   const dt = STEP * s.pace,
     kp = s.paces[c.kind] ?? 1,
     cdt = dt * kp,
     w = worth(c.size),
     way = c.way,
-    told = (words: string, good = true) => (h.told = { words, t: s.t, good });
+    told = (words: string, good = true) => (h.told = { words, t: s.t, good }),
+    fx = partEffects(h.traits);
   if (h.dividing) {
     // (Its daughters waiting to be chosen: it stays as it is.)
     s.cells.push(c);
@@ -183,15 +285,21 @@ export function stepHeld(s: DropState, h: DropHand): void {
   const act = h.act;
   h.act = null;
   if (act === "divide") {
-    if (c.energy >= 2 * w) h.dividing = true;
-    else told(`Not yet: ${Math.round((c.energy / (2 * w)) * 100)}% of the way to dividing`, false);
+    if (c.energy < 2 * w)
+      told(`Not yet: ${Math.round(Math.max(0, (c.energy - w) / w) * 100)}% of the way`, false);
+    else if (h.traits.nucleus) {
+      if (h.mate === null) {
+        h.mate = callMate(s, c, h);
+        told("You call for a mate of your kind: it is coming");
+      }
+    } else h.dividing = true;
   } else if (act === "dart") {
     if (c.energy > w * 0.05) {
-      h.dart = DART;
+      h.dart = DART * fx.dart;
       h.bask = false;
     } else told("Too little left in you to dart", false);
   } else if (act === "engulf") {
-    const prey = h.traits.nucleus ? preyOf(s, c) : null;
+    const prey = h.traits.nucleus ? preyOf(s, c, fx.prey) : null;
     if (!prey) told(h.traits.nucleus ? "None near small enough to take in" : "Your line has no nucleus to take in another", false);
     else {
       s.cells.splice(s.cells.indexOf(prey), 1);
@@ -213,7 +321,8 @@ export function stepHeld(s: DropState, h: DropHand): void {
   }
   // —— It moves as far as it is pushed: at its size no way is kept (inertia is nothing to it).
   const push = Math.min(1, Math.hypot(h.mx, h.my)),
-    v = h.speed * push * (h.dart > 0 ? DART_FASTER : 1) * (h.bask ? 0.3 : 1);
+    v =
+      h.speed * push * (h.dart > 0 ? DART_FASTER : 1) * (h.bask ? 0.3 : 1) * (h.caught > 0 ? GRIPPED : 1);
   if (push > 0.05) {
     c.heading = Math.atan2(h.my, h.mx);
     h.steered += dt;
@@ -223,14 +332,14 @@ export function stepHeld(s: DropState, h: DropHand): void {
   c.y = s.habitat === "soil" ? wrap(y, FIELD_H) : placeY(s, y);
   // —— What it takes in: the food it touches; light while it basks; its grain's chemistry, where its line lives by the rock.
   let gain = 0;
-  const reach = (c.size / 2 + 1) ** 2;
+  const reach = (c.size / 2 + 1 + fx.reach) ** 2;
   for (let i = s.motes.length - 1; i >= 0; i--) {
     const m = s.motes[i]!,
       dx = gap(c.x, m.x, FIELD_W),
       dy = gap(c.y, m.y, FIELD_H);
     if (dx * dx + dy * dy < reach) {
       s.motes.splice(i, 1);
-      gain += MOTE;
+      gain += m.worth ?? MOTE;
       h.ate++;
     }
   }
@@ -244,27 +353,73 @@ export function stepHeld(s: DropState, h: DropHand): void {
   h.gained += gain;
   // —— What it spends: to keep alive, by its size, and to go, as its speed's square against its way's usual.
   const base = SPEED[way] * kp;
-  c.energy -= (UPKEEP[way] * w + 0.002 * w * (v / Math.max(0.1, base)) ** 2) * cdt;
+  c.energy -= (HELD_UPKEEP * fx.upkeep * UPKEEP[way] * w + 0.002 * w * (v / Math.max(0.1, base)) ** 2) * cdt;
   c.age += cdt;
   for (const m of c.meals) m.age += dt;
   c.meals = c.meals.filter((m) => m.age < 8);
   // —— A hunting cell that reaches it takes it in; one that senses it closes on it, as it would on any cell it could take.
+  // (The mate called comes to it, and as they touch the young are made.)
+  if (h.mate !== null) {
+    const m = s.cells.find((x) => x.id === h.mate);
+    if (!m) h.mate = null;
+    else {
+      const dx = gap(m.x, c.x, FIELD_W),
+        dy = gapY(s, m.y, c.y),
+        d = Math.hypot(dx, dy) || 1;
+      if (d < (c.size + m.size) / 2 + 1) {
+        h.mate = null;
+        h.mated = true;
+        h.dividing = true;
+        m.heading += Math.PI;
+      } else {
+        const step = Math.min(d, Math.max(m.speed, h.speed) * 1.2 * dt);
+        m.heading = Math.atan2(dy, dx);
+        m.x = wrap(m.x + (dx / d) * step, FIELD_W);
+        m.y = placeY(s, m.y + (dy / d) * step);
+      }
+    }
+  }
+  let gripped = false;
+  h.hurt = Math.max(0, h.hurt - dt * 1.5);
   for (const o of s.cells) {
     if (o.way !== "hunter" || o.dividing > 0 || c.size >= o.size * 0.5) continue;
     const dx = gap(o.x, c.x, FIELD_W),
       dy = gapY(s, o.y, c.y),
       d2 = dx * dx + dy * dy;
     if (d2 < (o.size / 2) ** 2 && o.full <= 0) {
-      h.ended = "taken";
-      h.by = s.kinds[o.kind]?.name ?? "a hunting cell";
-      o.energy += w * DIGEST;
-      o.full = w * 0.3;
-      o.meals.push({ color: c.kind, age: 0 });
-      s.eaten++;
-      return;
+      // (In its grip: wrapped a little more each moment, hurt; held long enough, taken in.)
+      gripped = true;
+      h.caught += cdt / fx.engulf;
+      h.hurt = 1;
+      if (fx.toxin && h.caught > 0.3) {
+        // (Its poison: the hunter lets go, and keeps off it a while.)
+        o.full = w * 0.6;
+        o.heading += Math.PI;
+        told("Your toxin made it let go");
+        continue;
+      }
+      if (h.caught >= ENGULF) {
+        h.ended = "taken";
+        h.by = s.kinds[o.kind]?.name ?? "a hunting cell";
+        o.energy += w * DIGEST;
+        o.full = w * 0.3;
+        o.meals.push({ color: c.kind, age: 0 });
+        s.eaten++;
+        return;
+      }
+      continue;
     }
-    if (d2 < SENSED * SENSED && o.full <= 0) o.heading = Math.atan2(dy, dx);
+    if (d2 < SENSED * SENSED && o.full <= 0) {
+      // (It has sensed the one held: it turns to it, and closes.)
+      o.heading = Math.atan2(dy, dx);
+      const d = Math.sqrt(d2) || 1,
+        step = Math.min(d, LUNGE * o.speed * dt);
+      o.x = wrap(o.x + (dx / d) * step, FIELD_W);
+      o.y = placeY(s, o.y + (dy / d) * step);
+    }
   }
+  // (Pulled free, the grip loosens again.)
+  if (!gripped) h.caught = Math.max(0, h.caught - dt * 0.6);
   if (c.energy <= 0) {
     h.ended = "starved";
     s.died++;
@@ -312,6 +467,28 @@ export function divideHeld(
   next.engulfed = h.engulfed;
   next.steered = h.steered;
   return next;
+}
+
+/**
+ * A mate called by the cell held: the nearest of its own line about it, else the nearest of its kind of a size with it,
+ * else one of its kind come from further off (at the edge of what it sees). Its id.
+ */
+function callMate(s: DropState, c: Cell, h: DropHand): number {
+  let best: Cell | null = null,
+    bd = Infinity;
+  for (const o of s.cells) {
+    if (o === c || o.kind !== c.kind || o.dividing > 0 || o.size > c.size * 1.6 || o.size < c.size * 0.6) continue;
+    const d = Math.hypot(gap(c.x, o.x, FIELD_W), gapY(s, c.y, o.y)) - (o.marked ? 40 : 0);
+    if (d < 70 && d < bd) [best, bd] = [o, d];
+  }
+  if (best) return best.id;
+  const o = born(s, c.kind, null, wrap(c.x + 40, FIELD_W), c.y);
+  o.size = c.size;
+  o.speed = h.speed;
+  o.energy = worth(c.size);
+  o.marked = true;
+  s.cells.push(o);
+  return o.id;
 }
 
 /**

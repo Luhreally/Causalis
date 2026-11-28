@@ -12,9 +12,13 @@ import "./line.css";
 import type { GenesisPlan, HostClient } from "../bridge/index.ts";
 import { MicroScene, type OrbitRig, type Stage } from "../render/index.ts";
 import { LineCreature, type LineBody } from "./line-creature.ts";
+import { DepthLayer, type Beyond } from "./line-depth.ts";
+import { CellJuice } from "./line-juice.ts";
+import { LineSound } from "./line-sound.ts";
 import { el, type PlaceLoading } from "../ui/index.ts";
 import { LineHud } from "../ui/line-hud.ts";
 import { LineGuide } from "../ui/line-guide.ts";
+import { cellPicture } from "../ui/line-cell.ts";
 import { LinePages, fact, para, type LinePage } from "../ui/line-pages.ts";
 import {
   FIELD_W,
@@ -34,6 +38,8 @@ import {
   heldCell,
   holdDrop,
   preyOf,
+  ENGULF,
+  lookOf,
   stepHeld,
   threatOf,
   type DropHand,
@@ -55,6 +61,9 @@ import {
   swimSpeed,
   wayOf,
   whatNow,
+  PARTS,
+  partEffects,
+  type PartId,
   type Daughter,
   type Gates,
   type LineFacts,
@@ -81,7 +90,7 @@ export type LineFlow = {
 
 /** A saga as the page keeps it (host/saga.ts keeps it as it is given). */
 type SagaData = {
-  readonly v: 1;
+  readonly v: 2;
   readonly digest: string;
   /** The world's clock when it was begun (s), and the line asked for (null: the world's first cells). */
   readonly began: number;
@@ -90,7 +99,7 @@ type SagaData = {
   stage: "cell" | "body";
   my: number;
   readonly first: Traits;
-  gens: { pick: number; my: number; took: Daughter["took"]; reasons: readonly string[] }[];
+  gens: { pick: number; my: number; took: Daughter["took"]; reasons: readonly string[]; mated?: boolean }[];
   /** Past the cells: the body the line lives in now, and its generations (the founder first). */
   body?: LineBody | null;
   bodies?: { my: number; name: string; way: string; mass: number; reasons: readonly string[]; died: string | null }[];
@@ -147,7 +156,15 @@ export function installLine(d: LineDeps): LineFlow {
     living = false,
     offered: LineBody[] | null = null,
     pickMs = 0,
-    turnMs = 0;
+    turnMs = 0,
+    /** The meter full when last drawn; food taken when last looked; the eye's breadth across the drop now (µm). */
+    wasFull = false,
+    ateSeen = 0,
+    across = 0,
+    played = 0,
+    depth: DepthLayer | null = null,
+    juice: CellJuice | null = null;
+  const noises = new LineSound();
   /** How everything stood as the mode was entered, to be put back as it was on waking. */
   let was: {
     roots: Map<Root, boolean>;
@@ -266,6 +283,10 @@ export function installLine(d: LineDeps): LineFlow {
     return newDrop(block, risen);
   };
   /** The first kind a line begins as: the drop's first small cells that swim after what floats (else its rock-eaters). */
+  const wayKind = (t: Traits) => {
+    const k = kindOf(wayOf(t));
+    return k >= 0 ? k : 0;
+  };
   const firstKind = () => {
     const kinds = plan!.drop!.kinds;
     return kinds.find((k) => k.way === "eater") ?? kinds.find((k) => k.way === "rock") ?? kinds[0]!;
@@ -284,7 +305,7 @@ export function installLine(d: LineDeps): LineFlow {
       const k = firstKind(),
         first = firstTraits(k, k.pace ?? 1);
       saga = {
-        v: 1,
+        v: 2,
         digest: facts.digest,
         began: d.client.status?.t ?? 0,
         from,
@@ -315,6 +336,16 @@ export function installLine(d: LineDeps): LineFlow {
         ? `You go on with your line: generation ${saga.gens.length + 1}, ${myWords(my)}`
         : `You are one of your world's first cells, ${myWords(my)}`,
     );
+    wasFull = false;
+    ateSeen = 0;
+    across = 0;
+    played = 0;
+    if (drop && guide.first(`supply`))
+      hud.say(
+        drop.grain
+          ? "Food wells up about the vent below you: keep near it, and swim into the specks"
+          : "Food sheds from the lit water above you: keep near it, and swim into the specks",
+      );
     leaveBody();
     if (saga.stage === "body" && saga.body) startBody();
     else if (done) stageDone();
@@ -353,14 +384,18 @@ export function installLine(d: LineDeps): LineFlow {
   const openPicker = () => {
     if (!traits || !facts || !saga) return;
     const gen = saga.gens.length,
-      ds = daughtersOf(traits, saga.digest, sagaId, gen, gatesNow(), facts);
+      mated = !!hand?.mated,
+      ds = daughtersOf(traits, saga.digest, sagaId, gen, gatesNow(), facts, mated);
     choosing = ds;
     const box = el("div", "line-card line-pick"),
       head = el("div", "line-card-head"),
       q = el("button", "line-help", "?");
     q.setAttribute("aria-label", "How daughters differ");
     q.onclick = () => openPage("help:daughters");
-    head.append(el("h3", "", `Your cell divides in ${ds.length === 3 ? "three" : "two"}`), q);
+    head.append(
+      el("h3", "", mated ? `You and your mate: ${ds.length} young` : `Your cell divides in ${ds.length === 3 ? "three" : "two"}`),
+      q,
+    );
     const list = el("div", "line-pick-list");
     ds.forEach((dt, i) => {
       const b = el("button", `line-daughter${dt.took ? " took" : ""}`),
@@ -373,8 +408,15 @@ export function installLine(d: LineDeps): LineFlow {
               ? ` (the forebears of ${line.name} never did)`
               : "";
       b.dataset.daughter = String(i);
+      const kindColour = plan?.drop?.kinds[wayKind(t)]?.color,
+        fill = kindColour ? `rgb(${kindColour.map((v) => Math.round(v * 255)).join(",")})` : undefined;
       b.append(
-        el("strong", "", `${dt.took ? "✨ " : ""}Daughter ${i + 1}${forebears}`),
+        cellPicture(t, dt.part?.gained ? dt.part.id : null, fill),
+        el(
+          "strong",
+          "",
+          `${dt.mate ? "💞 " : dt.took ? "✨ " : dt.part?.gained ? "🧩 " : ""}Daughter ${i + 1}${dt.mate ? " (her mate's part)" : forebears}`,
+        ),
         el("span", "line-daughter-nums", `${t.size.toFixed(1)} µm across · ${speedOf(t).toFixed(1)} µm a second`),
         ...dt.reasons.map((r) => el("span", "line-daughter-why", r)),
       );
@@ -392,7 +434,13 @@ export function installLine(d: LineDeps): LineFlow {
     if (!choosing || !drop || !hand || !saga) return;
     const ds = choosing,
       chosen = ds[Math.max(0, Math.min(ds.length - 1, i))]!;
-    saga.gens.push({ pick: ds.indexOf(chosen), my, took: chosen.took, reasons: chosen.reasons });
+    saga.gens.push({
+      pick: ds.indexOf(chosen),
+      my,
+      took: chosen.took,
+      reasons: chosen.reasons,
+      ...(hand.mated ? { mated: true } : {}),
+    });
     const next = divideHeld(
       drop,
       hand,
@@ -403,6 +451,10 @@ export function installLine(d: LineDeps): LineFlow {
     choosing = null;
     layer(null);
     if (!next) return;
+    noises.play("split");
+    juice?.divided();
+    wasFull = false;
+    ateSeen = next.ate;
     hand = next;
     traits = chosen.traits;
     guide.did("choose");
@@ -424,27 +476,37 @@ export function installLine(d: LineDeps): LineFlow {
   const lost = () => {
     if (!hand || !saga) return;
     ended = true;
+    noises.play("hurt");
     saga.deaths++;
     void keepSaga();
     const how =
       hand.ended === "taken"
-        ? `One of the ${hand.by ?? "hunting cells"} took your cell in.`
-        : "Your cell spent more than it gathered, and died.";
-    layer(
-      card(
-        "Your cell is gone",
-        [how, "Your line lives on in its own kind: go on as one of them, with all your line has become."],
-        [key("Go on as one of your line", () => goOn()), key("☀️ Wake", () => void flow.wake(), true)],
-        "help:stage",
-      ),
-    );
+        ? `One of the ${hand.by ?? "hunting cells"} took your cell in`
+        : "Your cell spent more than it gathered, and died";
+    // (Not an end: a moment, and the line goes on in a sister or one of its own, with all the line has become.)
+    hud.say(`${how}. Your line goes on.`, false);
+    const banner = el("div", "line-goes-on");
+    banner.append(el("strong", "", "Your line goes on"), el("br"), el("span", "", "as one of its own"));
+    hud.element.append(banner);
+    window.setTimeout(() => {
+      banner.remove();
+      if (on && ended && !living) goOn();
+    }, 2400);
   };
   const goOn = () => {
     if (!drop || !traits) return;
     // (Where one of its line is still in the drop, there; else a sister newly divided, in the drop's middle.)
     const kin = drop.cells.find((c) => c.marked && c.id !== hand?.id);
     if (kin) drop.cells.splice(drop.cells.indexOf(kin), 1);
-    hand = holdDrop(drop, traits, speedOf(traits), kin ? { x: kin.x, y: kin.y } : null);
+    hand = holdDrop(
+      drop,
+      traits,
+      speedOf(traits),
+      kin ? { x: kin.x, y: kin.y } : null,
+      kin ? Math.max(kin.energy, worth(traits.size) * 0.6) : null,
+    );
+    wasFull = false;
+    ateSeen = 0;
     ended = false;
     layer(null);
     hud.say("You go on as one of your line");
@@ -785,6 +847,15 @@ export function installLine(d: LineDeps): LineFlow {
               .join(", "),
           ),
           fact("Its skin", `${f.membrane} membranes, as all life on this world`),
+          fact(
+            "Its parts",
+            Object.keys(t.parts ?? {}).length
+              ? Object.entries(t.parts ?? {})
+                  .map(([id, n]) => `${PARTS[id as PartId].name}${n! > 1 ? " (grown larger)" : ""}: ${PARTS[id as PartId].does}`)
+                  .join("; ")
+              : "none yet: each daughter may grow one",
+          ),
+          fact("It eats", t.nucleus ? "specks, and cells it takes in (both: a grazer and a hunter)" : t.base === "rock" ? "its grain's chemistry, and specks" : "specks (a grazer)"),
           fact("Its line", L(`${s.gens.length + 1} generations so far ›`, "line")),
           fact("Its world", L("What its seas are, and its dawn ›", "world")),
           fact("The drop", L("What lives about it ›", "drop")),
@@ -953,6 +1024,12 @@ export function installLine(d: LineDeps): LineFlow {
             if (way && kindOf(way) >= 0) arise(drop, kindOf(way));
           }
       }
+      if (hand.ate > ateSeen) {
+        noises.play("chomp");
+        juice?.bite();
+      }
+      ateSeen = hand.ate;
+      played += dt;
       if (hand.steered > 1.2) guide.did("steer");
       if (hand.ate >= 3) guide.did("eat");
       if (hand.dividing && !choosing) {
@@ -963,7 +1040,27 @@ export function installLine(d: LineDeps): LineFlow {
     } else hud.takePressed();
     eye(dt);
     const c = heldCell(drop, hand);
-    micro.living(roundDrop(aboutHeld(drop, hand), c ? hand.id : null), colours(), plan?.drop?.grain?.color);
+    const round = roundDrop(aboutHeld(drop, hand), c ? hand.id : null);
+    if (c) {
+      // (The cell held made lively: its eyes, its parts, its squash and stretch, its bites and its grip's ring.)
+      juice ??= new CellJuice(d.stage, micro.root as never);
+      juice.root.enabled = true;
+      juice.update(
+        round,
+        c.kind,
+        roundOf({ id: c.id, x: FIELD_W / 2, y: c.y }),
+        Math.max(0.12, c.size * (12 / 180) * 1.7),
+        c.heading,
+        paused ? 0 : Math.min(1, Math.hypot(hand.mx, hand.my)),
+        traits,
+        lookOf(drop, c),
+        1 - hand.caught / ENGULF,
+        Math.min(0.1, dt),
+      );
+    } else if (juice) juice.root.enabled = false;
+    micro.living(round, colours(), plan?.drop?.grain?.color);
+    depth ??= new DepthLayer(d.stage, micro.root as never);
+    depth.update(beyondOf(), traits.size, played, 0, cy);
     const now = performance.now();
     if (now - hudAt >= HUD_EVERY) {
       hudAt = now;
@@ -971,6 +1068,13 @@ export function installLine(d: LineDeps): LineFlow {
     }
   };
   const colours = () => plan?.drop?.kinds.map((k) => k.color) ?? [];
+  /** The larger lives of the water beyond the drop: its kinds at their sizes and, once its first bodies come, those. */
+  const beyondOf = (): Beyond[] => {
+    const kinds = plan?.drop?.kinds ?? [],
+      out: Beyond[] = kinds.map((k) => ({ size: k.size, color: k.color }));
+    if (traits?.together || my <= rungAt("together")) out.push({ size: 600, color: [0.85, 0.7, 0.6] });
+    return out;
+  };
 
   /** The eye beside the drop's slab, on the cell held (it stays in the middle across: the drop wraps about it). */
   const eye = (dt: number) => {
@@ -978,8 +1082,12 @@ export function installLine(d: LineDeps): LineFlow {
       cam = d.stage.camera,
       tan = Math.tan((22.5 * Math.PI) / 180),
       aspect = innerWidth / Math.max(1, innerHeight),
-      // (As much of the drop across as a phone held upright shows, and as much down as a desk does.)
-      far = Math.max(6.4 / (2 * tan), 4.8 / (2 * tan * aspect)) * hud.zoom,
+      // (As the line grows the eye eases out: it shows some twenty-four of the cell held across, never less than 48 µm nor
+      // more than the drop, eased over a second and a half: growth is felt, nothing leaps.)
+      want = Math.max(48, Math.min(170, 24 * (traits?.size ?? 2) * (traits ? partEffects(traits).sight : 1))),
+      k0 = across ? 1 - Math.exp(-Math.min(0.1, dt) / 1.5) : 1,
+      wide = (across += (want - across) * k0) * (12 / 180),
+      far = Math.max(wide / (2 * tan), (wide * 0.75) / (2 * tan * aspect)) * hud.zoom,
       high = 2 * far * tan;
     if (c) {
       const at = roundOf({ id: c.id, x: FIELD_W / 2, y: c.y }),
@@ -1003,6 +1111,7 @@ export function installLine(d: LineDeps): LineFlow {
       prey: c && traits!.nucleus ? (drop!.kinds[preyOf(drop!, c)?.kind ?? -1]?.name ?? null) : null,
       basking: !!hand?.bask,
       light: c && drop ? lightAt(drop, c.y) : 0,
+      mating: hand?.mate != null,
     });
   };
 
@@ -1025,12 +1134,39 @@ export function installLine(d: LineDeps): LineFlow {
     );
     if (c) {
       const w = worth(traits.size);
+      // (The meter: from empty as a daughter newly divided, with its worth, to full at twice it.)
+      const full = (c.energy - w) / w;
       hud.cell(
         `${traits.size.toFixed(1)} µm · ${speedOf(traits).toFixed(1)} µm/s · Re ${smallWords(reynoldsOf(traits, facts!))}`,
-        c.energy / (2 * w),
+        full,
       );
+      if (full >= 1 && !wasFull) {
+        hud.pop();
+        noises.play("pop");
+        if (guide.first(traits.nucleus ? "full-mate" : "full"))
+          hud.say(
+            traits.nucleus
+              ? "Your meter is full: call a mate! Press 💞 (Space), and your young will mix the two of you"
+              : "Your meter is full: divide! Press ➗ (Space)",
+          );
+      }
+      wasFull = full >= 1;
     }
     hud.offers(offersNow());
+    hud.health(1 - hand.caught / ENGULF, hand.hurt);
+    if (hand.caught > 0 && guide.first("caught")) hud.say("Caught! Swim hard, or dart (E), to pull free", false);
+    if (c) {
+      const near = threatOf(drop, c);
+      if (near !== null && near < 34 * partEffects(traits).sight) {
+        if (guide.first("danger")) hud.say("Something bigger is near: flee! Dart away with 💨 (E)", false);
+        noises.play("danger");
+      }
+      if (traits.nucleus && preyOf(drop, c) && guide.first("prey"))
+        hud.say("Smaller cells are food now: take one in with 🫧 (F)");
+      if (beyondOf().some((l) => l.size > traits!.size * 1.6) && played > 20 && guide.first("beyond"))
+        hud.say("Far behind, larger lives drift by: grow, and one day your line is their size");
+      noises.ambient(true, near === null ? 0 : Math.max(0, 1 - near / 40));
+    }
     const t = hand.told;
     if (t && t.words !== told) {
       told = t.words;
@@ -1111,7 +1247,7 @@ export function installLine(d: LineDeps): LineFlow {
         hud.show();
         on = true;
         const resumable =
-          kept.find((s) => s.data?.v === 1 && s.data.digest === f.digest && s.data.from === from) ?? null;
+          kept.find((s) => s.data?.v === 2 && s.data.digest === f.digest && s.data.from === from) ?? null;
         if (!p.drop) {
           drop = null;
           hand = null;
@@ -1162,6 +1298,7 @@ export function installLine(d: LineDeps): LineFlow {
       if (beast) beast.leave();
       living = false;
       offered = null;
+      noises.close();
       putBack();
       d.time.release("line");
       // (A world that stood still when the mode was entered stands still still: its clock is not let go by the mode.)
@@ -1305,7 +1442,7 @@ const HELP: Readonly<Record<string, readonly [string, readonly string[]]>> = {
   "help:acts": [
     "What your cell can do",
     [
-      "Divide (Space): when the bar is full. Your cell splits, and you choose the daughter to go on in.",
+      "Divide (Space): when the bar is full. Your cell splits, and you choose the daughter to go on in. Once your line has a nucleus this is Mate: you call one of your kind, it swims to you, and your young mix the two of you (one of them carries a part of your mate's).",
       "Dart (E): a burst of speed for a moment, to get clear of a hunter or reach food. It costs five times as much as swimming.",
       "Take in (F): only once your line has a nucleus. Swallow a cell under half your size that you touch.",
       "Bask (R): only once your line has taken in a light-eater. Hold still and live by light, brighter near the surface.",

@@ -8,7 +8,7 @@ import { el } from "./why.ts";
 
 const KEY = "causalis-line-guide";
 
-type Kept = { done: LessonId[]; welcomed: boolean; hidden: boolean };
+type Kept = { done: LessonId[]; welcomed: boolean; hidden: boolean; seen: string[] };
 
 function read(): Kept {
   try {
@@ -19,12 +19,13 @@ function read(): Kept {
         done: (k.done ?? []).filter((d) => LESSONS.some((l) => l.id === d)),
         welcomed: !!k.welcomed,
         hidden: !!k.hidden,
+        seen: Array.isArray(k.seen) ? k.seen.filter((x) => typeof x === "string").slice(0, 64) : [],
       };
     }
   } catch {
     // (For this visit only: a browser that keeps nothing.)
   }
-  return { done: [], welcomed: false, hidden: false };
+  return { done: [], welcomed: false, hidden: false, seen: [] };
 }
 
 export class LineGuide {
@@ -66,6 +67,14 @@ export class LineGuide {
   }
   get hidden(): boolean {
     return this.kept.hidden;
+  }
+
+  /** Whether a new thing (`id`) is met for the first time (then remembered as met): its guide line said once. */
+  first(id: string): boolean {
+    if (this.kept.hidden || this.kept.seen.includes(id)) return false;
+    this.kept.seen.push(id);
+    this.keep();
+    return true;
   }
 
   /** A lesson done: ticked off, said, the next one shown. */
