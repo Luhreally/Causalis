@@ -167,6 +167,23 @@ body.lining > *:not(#app) {
 .line-full.ready .line-full-fill {
   background: linear-gradient(90deg, #f2c14e, #ffe9a0);
 }
+.line-full.pop {
+  animation: line-pop 0.6s ease-out;
+}
+@keyframes line-pop {
+  0% {
+    transform: scaleY(1);
+    box-shadow: 0 0 0 0 rgba(255, 233, 160, 0.9);
+  }
+  30% {
+    transform: scaleY(2.2);
+    box-shadow: 0 0 12px 4px rgba(255, 233, 160, 0.8);
+  }
+  100% {
+    transform: scaleY(1);
+    box-shadow: 0 0 0 0 rgba(255, 233, 160, 0);
+  }
+}
 .line-told {
   padding: 4px 10px;
   border-radius: 8px;

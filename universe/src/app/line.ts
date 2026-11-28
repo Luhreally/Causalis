@@ -12,6 +12,8 @@ import "./line.css";
 import type { GenesisPlan, HostClient } from "../bridge/index.ts";
 import { MicroScene, type OrbitRig, type Stage } from "../render/index.ts";
 import { LineCreature, type LineBody } from "./line-creature.ts";
+import { DepthLayer, type Beyond } from "./line-depth.ts";
+import { LineSound } from "./line-sound.ts";
 import { el, type PlaceLoading } from "../ui/index.ts";
 import { LineHud } from "../ui/line-hud.ts";
 import { LineGuide } from "../ui/line-guide.ts";
@@ -147,7 +149,14 @@ export function installLine(d: LineDeps): LineFlow {
     living = false,
     offered: LineBody[] | null = null,
     pickMs = 0,
-    turnMs = 0;
+    turnMs = 0,
+    /** The meter full when last drawn; food taken when last looked; the eye's breadth across the drop now (µm). */
+    wasFull = false,
+    ateSeen = 0,
+    across = 0,
+    played = 0,
+    depth: DepthLayer | null = null;
+  const noises = new LineSound();
   /** How everything stood as the mode was entered, to be put back as it was on waking. */
   let was: {
     roots: Map<Root, boolean>;
@@ -315,6 +324,16 @@ export function installLine(d: LineDeps): LineFlow {
         ? `You go on with your line: generation ${saga.gens.length + 1}, ${myWords(my)}`
         : `You are one of your world's first cells, ${myWords(my)}`,
     );
+    wasFull = false;
+    ateSeen = 0;
+    across = 0;
+    played = 0;
+    if (drop && guide.first(`supply`))
+      hud.say(
+        drop.grain
+          ? "Food wells up about the vent below you: keep near it, and swim into the specks"
+          : "Food sheds from the lit water above you: keep near it, and swim into the specks",
+      );
     leaveBody();
     if (saga.stage === "body" && saga.body) startBody();
     else if (done) stageDone();
@@ -403,6 +422,9 @@ export function installLine(d: LineDeps): LineFlow {
     choosing = null;
     layer(null);
     if (!next) return;
+    noises.play("split");
+    wasFull = false;
+    ateSeen = next.ate;
     hand = next;
     traits = chosen.traits;
     guide.did("choose");
@@ -424,6 +446,7 @@ export function installLine(d: LineDeps): LineFlow {
   const lost = () => {
     if (!hand || !saga) return;
     ended = true;
+    noises.play("hurt");
     saga.deaths++;
     void keepSaga();
     const how =
@@ -953,6 +976,9 @@ export function installLine(d: LineDeps): LineFlow {
             if (way && kindOf(way) >= 0) arise(drop, kindOf(way));
           }
       }
+      if (hand.ate > ateSeen) noises.play("chomp");
+      ateSeen = hand.ate;
+      played += dt;
       if (hand.steered > 1.2) guide.did("steer");
       if (hand.ate >= 3) guide.did("eat");
       if (hand.dividing && !choosing) {
@@ -964,6 +990,8 @@ export function installLine(d: LineDeps): LineFlow {
     eye(dt);
     const c = heldCell(drop, hand);
     micro.living(roundDrop(aboutHeld(drop, hand), c ? hand.id : null), colours(), plan?.drop?.grain?.color);
+    depth ??= new DepthLayer(d.stage, micro.root as never);
+    depth.update(beyondOf(), traits.size, played, 0, cy);
     const now = performance.now();
     if (now - hudAt >= HUD_EVERY) {
       hudAt = now;
@@ -971,6 +999,13 @@ export function installLine(d: LineDeps): LineFlow {
     }
   };
   const colours = () => plan?.drop?.kinds.map((k) => k.color) ?? [];
+  /** The larger lives of the water beyond the drop: its kinds at their sizes and, once its first bodies come, those. */
+  const beyondOf = (): Beyond[] => {
+    const kinds = plan?.drop?.kinds ?? [],
+      out: Beyond[] = kinds.map((k) => ({ size: k.size, color: k.color }));
+    if (traits?.together || my <= rungAt("together")) out.push({ size: 600, color: [0.85, 0.7, 0.6] });
+    return out;
+  };
 
   /** The eye beside the drop's slab, on the cell held (it stays in the middle across: the drop wraps about it). */
   const eye = (dt: number) => {
@@ -978,8 +1013,12 @@ export function installLine(d: LineDeps): LineFlow {
       cam = d.stage.camera,
       tan = Math.tan((22.5 * Math.PI) / 180),
       aspect = innerWidth / Math.max(1, innerHeight),
-      // (As much of the drop across as a phone held upright shows, and as much down as a desk does.)
-      far = Math.max(6.4 / (2 * tan), 4.8 / (2 * tan * aspect)) * hud.zoom,
+      // (As the line grows the eye eases out: it shows some twenty-four of the cell held across, never less than 48 µm nor
+      // more than the drop, eased over a second and a half: growth is felt, nothing leaps.)
+      want = Math.max(48, Math.min(170, 24 * (traits?.size ?? 2))),
+      k0 = across ? 1 - Math.exp(-Math.min(0.1, dt) / 1.5) : 1,
+      wide = (across += (want - across) * k0) * (12 / 180),
+      far = Math.max(wide / (2 * tan), (wide * 0.75) / (2 * tan * aspect)) * hud.zoom,
       high = 2 * far * tan;
     if (c) {
       const at = roundOf({ id: c.id, x: FIELD_W / 2, y: c.y }),
@@ -1025,12 +1064,32 @@ export function installLine(d: LineDeps): LineFlow {
     );
     if (c) {
       const w = worth(traits.size);
+      // (The meter: from empty as a daughter newly divided, with its worth, to full at twice it.)
+      const full = (c.energy - w) / w;
       hud.cell(
         `${traits.size.toFixed(1)} µm · ${speedOf(traits).toFixed(1)} µm/s · Re ${smallWords(reynoldsOf(traits, facts!))}`,
-        c.energy / (2 * w),
+        full,
       );
+      if (full >= 1 && !wasFull) {
+        hud.pop();
+        noises.play("pop");
+        if (guide.first("full")) hud.say("Your meter is full: divide! Press ➗ (Space)");
+      }
+      wasFull = full >= 1;
     }
     hud.offers(offersNow());
+    if (c) {
+      const near = threatOf(drop, c);
+      if (near !== null && near < 34) {
+        if (guide.first("danger")) hud.say("Something bigger is near: flee! Dart away with ⚡ (E)", false);
+        noises.play("danger");
+      }
+      if (traits.nucleus && preyOf(drop, c) && guide.first("prey"))
+        hud.say("Smaller cells are food now: take one in with 🫧 (F)");
+      if (beyondOf().some((l) => l.size > traits!.size * 1.6) && played > 20 && guide.first("beyond"))
+        hud.say("Far behind, larger lives drift by: grow, and one day your line is their size");
+      noises.ambient(true, near === null ? 0 : Math.max(0, 1 - near / 40));
+    }
     const t = hand.told;
     if (t && t.words !== told) {
       told = t.words;
@@ -1162,6 +1221,7 @@ export function installLine(d: LineDeps): LineFlow {
       if (beast) beast.leave();
       living = false;
       offered = null;
+      noises.close();
       putBack();
       d.time.release("line");
       // (A world that stood still when the mode was entered stands still still: its clock is not let go by the mode.)

@@ -275,6 +275,13 @@ export class LineHud {
     this.full.title = full >= 1 ? "Full: you can divide" : `${w} of the way to dividing`;
   }
 
+  /** The meter filled: it pops. */
+  pop(): void {
+    this.full.classList.remove("pop");
+    void this.full.offsetWidth;
+    this.full.classList.add("pop");
+  }
+
   say(words: string, good = true): void {
     put(this.told, words);
     this.told.classList.toggle("bad", !good);
