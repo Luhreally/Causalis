@@ -57,6 +57,7 @@ const ASKED = [
   "line.band",
   "line.story",
   "line.stars",
+  "line.voyage",
   "saga.list",
   "saga.keep",
 ];

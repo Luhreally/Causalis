@@ -65,6 +65,7 @@ export const LAZY_ONLY: ReadonlyMap<string, string> = new Map([
   ["src/render/line-nest.ts", "Live a Line"],
   ["src/render/line-sea.ts", "Live a Line"],
   ["src/render/line-band.ts", "Live a Line"],
+  ["src/render/line-ride.ts", "Live a Line"],
   ["src/view/band-led.ts", "Live a Line"],
   ["src/host/line-story.ts", "Live a Line"],
   ["src/view/line.ts", "Live a Line"],

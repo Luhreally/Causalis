@@ -301,8 +301,62 @@ for (const view of [
         check(sailed.asked, "its sailing gives the ask as its reason");
         check(!st.asked, "the ask spent");
         await look("s3-sailed", "its ship sails: its card");
-        // (Then until it comes down: a world settled, its first colony, its picture.)
-        await pressText(".line-payoff button", /Until it comes down/, "⏭ Until it comes down");
+        // (Then aboard: the ship ridden from its dot on the map, the years going by in real time, quicker, held, and on
+        // to its landing: a world settled, its first colony, its picture.)
+        await pressText(".line-payoff button", /Its stars/, "Its stars");
+        await page.waitForTimeout(800);
+        check(
+          await k<boolean>("!!document.querySelector('.line-star-ship-at .line-star-hit')"),
+          "the ship under way, a dot on the map",
+        );
+        await k(
+          "document.querySelector('.line-star-ship-at .line-star-hit')?.scrollIntoView({ block: 'center' })",
+        );
+        await page.waitForTimeout(300);
+        await press(".line-star-ship-at .line-star-hit", "the ship, on the map");
+        type Ride = {
+          on: boolean;
+          paused: boolean;
+          pace: number;
+          through: number;
+          year: number | null;
+          arrives: number | null;
+          people: number | null;
+        };
+        const ride = () => k<Ride>("globalThis.causalis.lineMode.ride()");
+        await until("aboard", async () => (await ride()).on, 30000);
+        const r0 = await ride();
+        say(`aboard: ${JSON.stringify(r0)}`);
+        check(
+          await k<boolean>(
+            "document.body.dataset.scale === 'space' && !document.body.classList.contains('line-far')",
+          ),
+          "aboard: the dark between the stars, the ship's scene in sight",
+        );
+        await page.waitForTimeout(2500);
+        await look("s3r-aboard", "aboard the ship, the years going by");
+        say(
+          `aboard, its card: ${await k<string>("document.querySelector('.line-ride')?.textContent?.slice(0, 500) ?? ''")}`,
+        );
+        await until(
+          "a year passes aboard",
+          async () => ((await ride()).year ?? 0) > (r0.year ?? 0),
+          60000,
+        );
+        await pressText(".line-ride button", /a year a second/, "⏩ a year a second");
+        await page.waitForTimeout(300);
+        check((await ride()).pace === 1, "quicker: a year a second");
+        await pressText(".line-ride button", /Hold/, "⏸ Hold");
+        await page.waitForTimeout(2500);
+        const held = await ride();
+        await page.waitForTimeout(2500);
+        check(
+          held.paused && (await ride()).year === held.year,
+          `held: no year passes (${held.year})`,
+        );
+        await look("s3s-held", "aboard, held");
+        await pressText(".line-ride button", /Go on/, "▶ Go on");
+        await pressText(".line-ride button", /To its landing/, "⏭ To its landing");
         const t2 = Date.now();
         await until(
           "its ship comes down",
@@ -328,6 +382,13 @@ for (const view of [
           "the world settled, green on the map",
         );
         await look("s3c-map-settled", "its stars, a world settled on the map");
+        // (Its whole way, as the third world settled shows it: one card, from its cell to its worlds.)
+        await k("globalThis.causalis.lineMode.whole(3)");
+        await page.waitForTimeout(500);
+        say(
+          `its whole way: ${await k<string>("document.querySelector('.line-payoff')?.textContent?.slice(0, 400) ?? ''")}`,
+        );
+        await look("s3w-whole", "the line's whole way");
       }
     }
     // —— Its year (C1): the realm's council, a choice made by its own command, the year let pass and what it came to told.

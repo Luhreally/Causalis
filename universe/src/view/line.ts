@@ -742,6 +742,7 @@ export type LessonId =
   | "story"
   | "rule"
   | "ask"
+  | "ride"
   | "land"
   | "settle";
 
@@ -877,11 +878,19 @@ export const LESSONS: readonly {
     show: ".line-star-map",
   },
   {
+    id: "ride",
+    stage: "stars",
+    title: "Ride aboard your ship",
+    words:
+      "Let the years pass until your ship sails, then ride aboard it between the stars: its people born and dying on the way, their food and their mood, and what befalls them, as it happens.",
+    show: ".line-link-go",
+  },
+  {
     id: "land",
     stage: "stars",
     title: "See your people come down",
     words:
-      "Let the years pass until your ship sails, then until it comes down: the world it lands on, and its first colony there.",
+      "Ride on, or go straight to its landing: the world it comes down on, and its first colony there.",
     show: ".line-link-go",
   },
   {

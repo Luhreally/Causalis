@@ -59,7 +59,7 @@ import {
 import { homePlanet, populationContext, provinceCapacity } from "../sim/index.ts";
 import { peopleFigure } from "./folk.ts";
 import { landCamps } from "./land.ts";
-import { starsOf, storyOf, type LineRises } from "./line-story.ts";
+import { starsOf, storyOf, voyageOf, type LineRises } from "./line-story.ts";
 import { installSaga, type SagaStore } from "./saga.ts";
 
 /** A body of the line: what it is called, its way of life, its genome and the body it grows, and why it is as it is. */
@@ -688,6 +688,8 @@ export function ask(type: string, world: World, args: unknown): unknown {
       return storyOf(world, a.cell);
     case "line.stars":
       return starsOf(world, a.cell);
+    case "line.voyage":
+      return voyageOf(world, args);
     case "line.makeSo":
       return makeSo(world.seed.text, a);
     case "line.rises":

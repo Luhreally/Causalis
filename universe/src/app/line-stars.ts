@@ -28,6 +28,8 @@ export function starMap(
   st: LineStars,
   picked: string | null,
   onPick: (ref: string) => void,
+  /** A ship under way pressed: ridden (app/line-ride.ts). */
+  onRide: (land: string) => void,
 ): SVGSVGElement {
   const svg = make("svg", {
     viewBox: `${-W / 2} ${-H / 2} ${W} ${H}`,
@@ -63,7 +65,8 @@ export function starMap(
     t.textContent = `${r} ly`;
     svg.append(t);
   }
-  const settled = new Set(st.ships.filter((s) => s.arrived).map((s) => s.star));
+  const settled = new Set(st.ships.filter((s) => s.arrived).map((s) => s.star)),
+    ships: { land: string; x: number; y: number }[] = [];
   // —— The ships: a line from where each sailed to where it goes, a dot where it is now.
   for (const sh of st.ships) {
     const [x0, y0] = at(sh.from),
@@ -79,15 +82,7 @@ export function starMap(
         class: sh.arrived ? "line-star-way come" : "line-star-way",
       }),
     );
-    if (!sh.arrived)
-      svg.append(
-        make("circle", {
-          cx: x0 + (x1 - x0) * f,
-          cy: y0 + (y1 - y0) * f,
-          r: 4,
-          class: "line-star-ship",
-        }),
-      );
+    if (!sh.arrived) ships.push({ land: sh.land, x: x0 + (x1 - x0) * f, y: y0 + (y1 - y0) * f });
   }
   // —— Home.
   svg.append(make("circle", { r: 6, class: "line-star-home" }));
@@ -128,5 +123,17 @@ export function starMap(
       const [x, y] = at(sh.to);
       svg.append(make("circle", { cx: x, cy: y, r: 5, class: "line-star-dot settled" }));
     }
+  // —— Each ship under way, over the stars (pressed: ridden), its own touch ring a fingertip across.
+  for (const sh of ships) {
+    const g = make("g", { class: "line-star-ship-at", "data-ship": sh.land });
+    g.append(
+      make("circle", { cx: sh.x, cy: sh.y, r: 9, class: "line-star-ship-ring" }),
+      make("circle", { cx: sh.x, cy: sh.y, r: 4, class: "line-star-ship" }),
+    );
+    const hit = make("circle", { cx: sh.x, cy: sh.y, r: HIT, class: "line-star-hit" });
+    hit.addEventListener("click", () => onRide(sh.land));
+    g.append(hit);
+    svg.append(g);
+  }
   return svg;
 }
