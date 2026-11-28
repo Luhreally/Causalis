@@ -277,6 +277,12 @@ export function storyPage(
         parts: HTMLElement[] = [];
       if (st.wants.length)
         parts.push(fact("Not at the stars yet", `${r.name} lacks ${st.wants.join("; ")}`));
+      // (First, the stage's own key where there is a ship to wait for: the years let pass in the mode, until the
+      // ship asked for sails, or until one under way comes down.)
+      const under = st.ships.filter((x) => !x.arrived);
+      if (under.length) parts.push(space.run("⏭ Let the years pass until it comes down", "lands"));
+      else if (st.asked && !st.asked.taken && !st.wants.length)
+        parts.push(space.run("⏭ Let the years pass until it sails", "sails"));
       // (The map, once there is anything at the stars to draw: press a star to pick it.)
       if (st.stars.length || st.ships.length) {
         parts.push(space.map(st));
@@ -296,11 +302,6 @@ export function storyPage(
         } else
           parts.push(para("Press a star on the map to pick it, or choose from the list below."));
       }
-      // (The years let pass in the mode: until the ship asked for sails, or until one under way comes down.)
-      const under = st.ships.filter((x) => !x.arrived);
-      if (under.length) parts.push(space.run("⏭ Let the years pass until it comes down", "lands"));
-      else if (st.asked && !st.asked.taken && !st.wants.length)
-        parts.push(space.run("⏭ Let the years pass until it sails", "sails"));
       if (st.asked)
         parts.push(
           fact(

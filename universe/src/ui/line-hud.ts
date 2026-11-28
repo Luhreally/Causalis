@@ -273,8 +273,35 @@ export class LineHud {
     });
   }
 
+  /** Held by a later stage's top (far): the stage under it does not write over it. */
+  private far = false;
+  /**
+   * The top as a later stage tells it (the realm's year, its stars; null: given back to the stage under it): its name, when,
+   * its bar (0 … 1) and its words, its strip's words and meter (0 … 1) and what the meter is.
+   */
+  farTop(
+    top: {
+      name: string;
+      when: string;
+      through: number;
+      words: string;
+      strip: string;
+      full: number;
+      meter: string;
+    } | null,
+  ): void {
+    this.far = false;
+    if (!top) return;
+    this.head(top.name, top.when, top.through, top.words);
+    this.cell(top.strip, top.full);
+    this.full.classList.remove("ready");
+    this.full.title = top.meter;
+    this.far = true;
+  }
+
   /** The top's words: the cell's name, when it is, the clock's way (0 … 1) to the first bodies and its words. */
   head(name: string, when: string, through: number, clockWords: string): void {
+    if (this.far) return;
     put(this.name, `🧬 ${name} ›`);
     put(this.when, when);
     const w = `${Math.round(Math.max(0, Math.min(1, through)) * 1000) / 10}%`;
@@ -284,6 +311,7 @@ export class LineHud {
 
   /** The strip: its words, and how near it is to dividing (0 … 1). */
   cell(words: string, full: number): void {
+    if (this.far) return;
     put(this.stripWords, words);
     const w = `${Math.round(Math.max(0, Math.min(1, full)) * 100)}%`;
     if (this.fullFill.style.width !== w) this.fullFill.style.width = w;
