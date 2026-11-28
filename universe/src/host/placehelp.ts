@@ -58,8 +58,22 @@ export const HELP: Readonly<Record<string, Help>> = {
         "From −100 to +100. Below the red tick on a person's page, they stop doing as they are told.",
       ],
       ["The bars", "How hungry, tired, cold and lonely each is: the fuller, the more it presses."],
+      [
+        "Urgent",
+        "What most wants you in each: in want, abed, too unhappy to follow orders, a need near full.",
+      ],
+      ["41–60 of 212", "Which of all those shown this page holds. A page holds sixty."],
+      ["▲ and ▼", "The way the list is ordered: ▲ smallest first (A to Z), ▼ largest first."],
     ],
-    can: ["Tap a name to open their page.", "Pick a trade to see only those who work at it."],
+    can: [
+      "Tap a name to open their page.",
+      "Pick a trade to see only those who work at it.",
+      "Type in Find by name to see only those whose name has it.",
+      "Tap Name, Urgent, Trade, Mood or Age over the list to order it by that; tap it again for the other way.",
+      "Group puts them under a head each by household, street, trade or skill, with how many are in it.",
+      "Idle, Sick or hurt, Unhappy, No home and Under arms show only those; tap again to see everyone.",
+      "Pick many, tap rows to pick them (or Pick all on this page), then give one order to all of them: a trade, a draft, stand down, pin. It says how many took it, and why any did not.",
+    ],
   },
   "sheet:stocks": {
     title: "Stocks",
@@ -95,6 +109,7 @@ export const HELP: Readonly<Record<string, Help>> = {
     can: [
       "Move the shares to put more hands where they are needed.",
       "Open the grid to set each person's priorities.",
+      "Find someone in the grid by name, and page through it with Prev and Next.",
     ],
   },
   "sheet:build": {

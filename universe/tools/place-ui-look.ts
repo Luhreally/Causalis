@@ -92,6 +92,7 @@ const SIGN_KEYS = [
   ".place-insp-go",
   ".place-levels-up",
   ".place-levels-down",
+  ".place-pick-one",
 ].join(", ");
 const SIGNED = `(() => { const out = []; for (const b of document.querySelectorAll(${JSON.stringify(SIGN_KEYS)})) { const r = b.getBoundingClientRect(); if (!(r.width > 0 && r.height > 0)) continue; const w = b.querySelector(".place-capkey-words"); if (w) { const q = w.getBoundingClientRect(); if (!(q.width > 0 && q.height > 0 && (w.textContent ?? "").trim() && q.left >= r.left - 0.5 && q.right <= r.right + 0.5 && q.bottom <= r.bottom + 0.5)) out.push(b.className + " cut"); } else if (!/[A-Za-z]{3}/.test(b.textContent ?? "")) out.push(b.className + " " + JSON.stringify(b.textContent)); } return out; })()`;
 type State = { on: boolean; town: string | null; told: PlaceFrame | null; ran: string };
@@ -1837,6 +1838,286 @@ for (const view of [
       await page.waitForTimeout(600);
       await press(".place-sheet-shut", "the sheet's close");
     } else say("no one of it, or no one elsewhere, to pin");
+  }
+
+  // People at scale (U5): a name typed narrows the rows and the box stays put with its focus; a column's key orders
+  // them and says so, and again the other way; the pages move and count; a grouping shows its heads with their counts;
+  // a ready narrowing holds as many as its chip says; many picked are given one order (a draft, then stood down), each
+  // as their own, and the sheet says how many took it; the priorities grid pages and is searched. Every new key a
+  // fingertip's, nothing over anything.
+  {
+    const ref = JSON.stringify(town.ref),
+      rows = () =>
+        k<{ id: number; name: string }[]>(
+          `[...document.querySelectorAll(".place-rows > .place-person")].map((e) => ({ id: Number(e.dataset.id), name: (e.querySelector(".place-row-name")?.textContent ?? "").replace(/^📌 /, "") }))`,
+        ),
+      plain = (x: string) => x.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase(),
+      settle = async (what: string, ok: () => Promise<boolean>) => {
+        await until(what, ok, 8000);
+        await page.waitForTimeout(300);
+      },
+      big = async (selector: string, what: string) => {
+        if (!phone) return;
+        const small = await k<string[]>(
+          `[...document.querySelectorAll(${JSON.stringify(selector)})].filter((e) => { const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0 && (r.width < 43.5 || r.height < 43.5); }).map((e) => e.className + " " + Math.round(e.getBoundingClientRect().width) + "x" + Math.round(e.getBoundingClientRect().height))`,
+        );
+        check(
+          small.length === 0,
+          `${what}: every key a fingertip's (${small.slice(0, 3).join("; ")})`,
+        );
+      };
+    await press('.place-tab[data-tab="people"]', "the People tab, at scale");
+    await settle("the People sheet's rows", async () => (await rows()).length > 0);
+    const all = await k<{ all: number; most: number }>(
+      `globalThis.causalis.client.query({ type: "place.people", args: { ref: ${ref}, occ: null } }).then((s) => ({ all: s?.all ?? 0, most: s?.most ?? 60 }))`,
+    );
+    const before = await rows();
+    say(`people at scale: ${all.all} in all, ${before.length} on the first page`);
+    check(
+      before.length === Math.min(all.all, all.most),
+      `a page holds ${all.most} at most (${before.length} of ${all.all})`,
+    );
+    await big(
+      ".place-people-find input, .place-pick-key, .place-sort, .place-pager button, .place-group-key, .place-only-chip",
+      "the People sheet's tools",
+    );
+    // (A name typed: only those whose name holds it, the box where it was, still with the finger's focus.)
+    const sought = plain(
+      (before[Math.min(2, before.length - 1)]?.name ?? "a").split(" ")[0]!.slice(0, 3),
+    );
+    const boxAt = await box(".place-people-find input");
+    await page.locator(".place-people-find input").click();
+    await page.keyboard.type(sought, { delay: 60 });
+    await settle(`the rows narrowed to "${sought}"`, async () => {
+      const now = await rows();
+      return now.length > 0 && now.every((r) => plain(r.name).includes(sought));
+    });
+    const narrowed = await rows(),
+      boxNow = await box(".place-people-find input");
+    say(`"${sought}": ${narrowed.length} rows, "${await text(".place-pager .place-page-words")}"`);
+    check(
+      narrowed.length > 0 &&
+        narrowed.length <= before.length &&
+        narrowed.every((r) => plain(r.name).includes(sought)),
+      `a name typed narrows the rows to those it names (${narrowed.length} of ${all.all})`,
+    );
+    check(
+      !!boxAt && !!boxNow && Math.abs(boxAt.y - boxNow.y) < 2,
+      `the name box does not move as it is typed in (${boxAt?.y} to ${boxNow?.y})`,
+    );
+    check(
+      await k<boolean>(
+        `document.activeElement === document.querySelector(".place-people-find input")`,
+      ),
+      "the name box keeps its focus as the rows are drawn again",
+    );
+    await look("24-people-found", "the People sheet, a name sought");
+    await page.locator(".place-people-find input").fill("");
+    await page.keyboard.press("Enter");
+    await k(`document.activeElement?.blur()`);
+    await settle("all the rows again", async () => (await rows()).length === before.length);
+    // (By name, A to Z, its key saying so; again, Z to A.)
+    await press('.place-sort[data-sort="name"]', "the Name column's key");
+    await settle("the rows by name", async () =>
+      /▲/.test(await text('.place-sort[data-sort="name"]')),
+    );
+    const az = (await rows()).map((r) => plain(r.name)),
+      head = await k<{ words: string; sort: string | null; on: boolean }>(
+        `(() => { const b = document.querySelector('.place-sort[data-sort="name"]'); return { words: b?.textContent ?? "", sort: b?.getAttribute("aria-sort") ?? null, on: !!b?.classList.contains("on") }; })()`,
+      );
+    check(
+      az.length > 1 && az.every((x, i) => i === 0 || az[i - 1]! <= x),
+      `ordered by name, A to Z (${az.slice(0, 3).join(", ")} …)`,
+    );
+    check(
+      head.on && /▲/.test(head.words) && head.sort === "ascending",
+      `the Name key shows the order: "${head.words}", ${head.sort}`,
+    );
+    await press('.place-sort[data-sort="name"]', "the Name column's key again");
+    await settle("the rows by name, the other way", async () =>
+      /▼/.test(await text('.place-sort[data-sort="name"]')),
+    );
+    const za = (await rows()).map((r) => plain(r.name));
+    check(
+      za.length > 1 && za.every((x, i) => i === 0 || za[i - 1]! >= x) && za[0] !== az[0],
+      `again: Z to A, its key "${await text('.place-sort[data-sort="name"]')}"`,
+    );
+    await look("25-people-sorted", "the People sheet ordered by name");
+    await press('.place-sort[data-sort="eye"]', "the Urgent column's key");
+    await settle("the rows by what wants the eye", async () =>
+      /▼/.test(await text('.place-sort[data-sort="eye"]')),
+    );
+    // (The pages: the next one where the first ended, counted; and back.)
+    if (all.all > all.most) {
+      const firstIds = (await rows()).map((r) => r.id);
+      await press(".place-pager .place-page-next", "Next ›");
+      await settle("the second page", async () =>
+        (await text(".place-pager .place-page-words")).startsWith(`${all.most + 1}–`),
+      );
+      const words = await text(".place-pager .place-page-words"),
+        second = (await rows()).map((r) => r.id);
+      check(
+        words === `${all.most + 1}–${Math.min(all.all, 2 * all.most)} of ${all.all}` &&
+          second.length > 0 &&
+          second.every((id) => !firstIds.includes(id)),
+        `Next shows the next ${all.most}, counted: "${words}"`,
+      );
+      await look("26-people-page", "the People sheet's second page");
+      await press(".place-pager .place-page-prev", "‹ Prev");
+      await settle("the first page again", async () =>
+        (await text(".place-pager .place-page-words")).startsWith("1–"),
+      );
+      check(
+        (await text(".place-pager .place-page-words")) === `1–${all.most} of ${all.all}`,
+        `Prev comes back to the first: "${await text(".place-pager .place-page-words")}"`,
+      );
+    } else
+      check(
+        (await text(".place-pager .place-page-words")) === `${all.all} people`,
+        `one page: "${await text(".place-pager .place-page-words")}"`,
+      );
+    // (Grouped by household: a head over each household's rows, with how many are in it.)
+    await press(".place-group-key", "Group ▾");
+    await press('.place-group-chip[data-group="house"]', "Group: Household");
+    await settle("the households' heads", async () => (await shown(".place-group-head")) > 0);
+    const heads = await k<string[]>(
+      `[...document.querySelectorAll(".place-group-head")].map((e) => e.textContent ?? "")`,
+    );
+    say(`grouped by household: ${heads.length} heads, ${heads.slice(0, 3).join(" | ")}`);
+    check(
+      heads.length > 0 && heads.every((h) => /household\d+ (person|people)$/.test(h)),
+      `grouped by household: a head each, with its count (${heads[0]})`,
+    );
+    await look("27-people-grouped", "the People sheet grouped by household");
+    await press(".place-group-key", "Group ▾ again");
+    await press('.place-group-chip[data-group="none"]', "Group: None");
+    await settle("no heads", async () => (await shown(".place-group-head")) === 0);
+    // (A ready narrowing: as many as its chip says, its chip marked.)
+    {
+      const chip = await k<{ only: string; n: number } | null>(
+        `(() => { const b = document.querySelector(".place-only-chip"); if (!b) return null; const m = /(\\d+)$/.exec(b.textContent ?? ""); return { only: b.dataset.only ?? "", n: m ? Number(m[1]) : -1 }; })()`,
+      );
+      if (chip) {
+        await press(`.place-only-chip[data-only="${chip.only}"]`, `the ${chip.only} chip`);
+        await settle(
+          `only the ${chip.only}`,
+          async () =>
+            await k<boolean>(
+              `!!document.querySelector('.place-only-chip[data-only="${chip.only}"].on')`,
+            ),
+        );
+        const words = await text(".place-pager .place-page-words");
+        check(
+          words === `${chip.n} ${chip.n === 1 ? "person" : "people"}` ||
+            words.endsWith(` of ${chip.n}`),
+          `the ${chip.only} chip shows as many as it counts (${chip.n}: "${words}")`,
+        );
+        await press(`.place-only-chip[data-only="${chip.only}"]`, `the ${chip.only} chip, again`);
+        await settle("everyone again", async () => (await shown(".place-only-chip.on")) === 0);
+      } else say("no ready narrowing holds anyone now");
+    }
+    // (Pick many: all of this page picked, drafted at once, the sheet saying how many took it; then stood down.)
+    await press(".place-pick-key", "Pick many");
+    await settle("the pick keys", async () => (await shown(".place-pick-one")) > 0);
+    await press(".place-pick-all", "Pick all on this page");
+    const picked = await k<number>(
+      `Number(/^(\\d+)/.exec(document.querySelector(".place-pick-count")?.textContent ?? "")?.[1] ?? -1)`,
+    );
+    check(
+      picked === Math.min(all.all, all.most),
+      `all on the page picked, and counted: "${await text(".place-pick-count")}"`,
+    );
+    await big(".place-pick-bar button, .place-pick-one", "picking many");
+    await look("28-people-picked", "the People sheet, many picked");
+    await press('.place-pick-order[data-order="draft"]', "⚔️ Draft, for all picked");
+    await settle("what the draft came to", async () =>
+      /^Drafted \d+ of \d+/.test(await text(".place-pick-said")),
+    );
+    // (The sheet read again after it, so each picked is known drafted before they are stood down.)
+    await page.waitForTimeout(1500);
+    const said = await text(".place-pick-said"),
+      took = Number(/^Drafted (\d+) of (\d+)/.exec(said)?.[1] ?? -1),
+      of = Number(/^Drafted (\d+) of (\d+)/.exec(said)?.[2] ?? -1),
+      drafted = () =>
+        k<number>(
+          `globalThis.causalis.client.query({ type: "place.people", args: { ref: ${ref}, occ: null, only: "arms" } }).then((s) => s ? s.rows.filter((r) => r.drafted).length + (s.all > s.rows.length ? 1e6 : 0) : -1)`,
+        );
+    say(`the draft: "${said}"`);
+    check(of === picked, `the draft says it was given to all ${picked} picked (${of})`);
+    const byName = await drafted();
+    check(
+      took > 0 && byName === took,
+      `each drafted by their own order: ${took} said, ${byName} drafted by name`,
+    );
+    await look("29-people-drafted", "many drafted at once, and said");
+    await press('.place-pick-order[data-order="undraft"]', "Stand down, for all picked");
+    await settle("what standing down came to", async () =>
+      /^Stood \d+ of \d+ down/.test(await text(".place-pick-said")),
+    );
+    check((await drafted()) === 0, `all stood down again: "${await text(".place-pick-said")}"`);
+    await press(".place-pick-clear", "Clear");
+    check(/^0 picked/.test(await text(".place-pick-count")), "Clear lets all go");
+    await press(".place-pick-key", "Done picking");
+    check((await shown(".place-pick-one")) === 0, "done picking: the rows open pages again");
+    await press(".place-sheet-shut", "the sheet's close");
+    // (The priorities grid a page at a time, and searched by name.)
+    await press('.place-tab[data-tab="work"]', "the Work tab, for the grid at scale");
+    await until("the Work sheet", async () => !/^…$/.test(await text(".place-sheet-body")));
+    await page.evaluate(() =>
+      document.querySelector(".place-grid-open")?.scrollIntoView({ block: "center" }),
+    );
+    await page.waitForTimeout(300);
+    if (await box(".place-grid-open")) {
+      await press(".place-grid-open", "the priorities grid, at scale");
+      await settle("the grid's page line", async () => (await shown(".place-grid-pager")) > 0);
+      const g = await k<{ all: number; most: number }>(
+        `globalThis.causalis.client.query({ type: "place.work", args: { ref: ${ref} } }).then((s) => ({ all: s?.grid.all ?? 0, most: s?.grid.most ?? 48 }))`,
+      );
+      const words = await text(".place-grid-pager .place-page-words");
+      say(`the grid: ${g.all} in all, "${words}"`);
+      if (g.all > g.most) {
+        check(words === `1–${g.most} of ${g.all}`, `the grid's first page counted: "${words}"`);
+        await press(".place-grid-pager .place-page-next", "the grid's Next ›");
+        await settle("the grid's second page", async () =>
+          (await text(".place-grid-pager .place-page-words")).startsWith(`${g.most + 1}–`),
+        );
+        check(
+          // (Each row's name, not the row: a row is laid out as its cells alone, display: contents, and has no box of its own.)
+          (await shown(
+            ".place-grid-rows .place-grid-row:not(.place-grid-head) > .place-grid-name",
+          )) === Math.min(g.most, g.all - g.most),
+          `the grid's Next shows the rest: "${await text(".place-grid-pager .place-page-words")}"`,
+        );
+        await press(".place-grid-pager .place-page-prev", "the grid's ‹ Prev");
+      } else check(/people?$|person$/.test(words), `the grid on one page: "${words}"`);
+      const gridName = plain(
+        (
+          await text(".place-grid-rows .place-grid-row:not(.place-grid-head) .place-grid-who")
+        ).split(" ")[0]!,
+      );
+      await page.locator(".place-grid-find input").click();
+      await page.keyboard.type(gridName.slice(0, 3), { delay: 60 });
+      await settle("the grid narrowed by name", async () => {
+        const names = await k<string[]>(
+          `[...document.querySelectorAll(".place-grid-rows .place-grid-who")].map((e) => e.textContent ?? "")`,
+        );
+        return names.length > 0 && names.every((x) => plain(x).includes(gridName.slice(0, 3)));
+      });
+      check(
+        await k<boolean>(
+          `document.activeElement === document.querySelector(".place-grid-find input")`,
+        ),
+        "the grid's name box keeps its focus as the grid is drawn again",
+      );
+      await big(".place-grid-find input, .place-grid-pager button", "the grid's tools");
+      await look("30-grid-found", "the priorities grid, a name sought");
+      await page.locator(".place-grid-find input").fill("");
+      await page.keyboard.press("Enter");
+      await k(`document.activeElement?.blur()`);
+      await page.waitForTimeout(800);
+      await press(".place-grid-open", "the priorities grid, closed again");
+    } else say("the Work sheet has no priorities grid");
+    await press(".place-sheet-shut", "the sheet's close");
   }
 
   // The night: its people still to be told apart.

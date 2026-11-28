@@ -88,6 +88,14 @@ export const LESSONS: readonly Lesson[] = [
       "Town is at the foot when the town is run by hand or by its head; when it is watched, it is in ≡.",
   },
   {
+    id: "pick",
+    title: "Give many one order",
+    words:
+      "On People, tap Pick many, then tap each one you want (or Pick all on this page), and choose one order for all of them. It says how many took it, and why any did not.",
+    show: ".place-pick-key",
+    first: "Open People at the foot first: Pick many is beside its name box.",
+  },
+  {
     id: "alert",
     title: "Answer an alert",
     words:

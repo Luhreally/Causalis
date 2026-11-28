@@ -202,6 +202,36 @@ export type PlacePersonRow = {
   readonly post: number | null;
   /** Pinned: kept on the god game's people bar (📌), or followed in full by your word in the town. */
   readonly pinned: boolean;
+  /** Their age in whole years, and whether they are too young for a trade or a draft (U5: what an order to many reads). */
+  readonly age: number;
+  readonly young: boolean;
+  /** Drafted by name (R9), and why a draft would not stand them to arms now (null: it would): "abed", "a child". */
+  readonly drafted: boolean;
+  readonly undraftable: string | null;
+  /** The group they are under where the sheet is grouped (PlacePeopleSheet.groups' key; null: not grouped). */
+  readonly group: number | null;
+};
+/** How the People sheet can be ordered (U5): what wants the eye most, by name, by mood, by age, by trade. */
+export const PEOPLE_SORTS = ["eye", "name", "mood", "age", "trade"] as const;
+export type PeopleSort = (typeof PEOPLE_SORTS)[number];
+/** What its rows can be grouped by (U5): household, the street front their home is on, trade, skill at their trade. */
+export const PEOPLE_GROUPS = ["house", "street", "trade", "skill"] as const;
+export type PeopleGroup = (typeof PEOPLE_GROUPS)[number];
+/**
+ * Its ready narrowings (U5), each read off what the sheet knows: waiting at their work for want of stuff, hurt or sick,
+ * low in mood, with no home of their own, under arms.
+ */
+export const PEOPLE_ONLY = ["idle", "ill", "unhappy", "roofless", "arms"] as const;
+export type PeopleOnly = (typeof PEOPLE_ONLY)[number];
+/** What the People sheet is asked for besides a trade (U5): a name, an order and its way, a page, a grouping, a narrowing. */
+export type PlacePeopleAsk = {
+  readonly q?: string;
+  readonly sort?: PeopleSort;
+  /** Smallest first (A to Z, the lowest mood, the youngest); else the largest first. Absent: the sort's own way. */
+  readonly up?: boolean;
+  readonly page?: number;
+  readonly group?: PeopleGroup | null;
+  readonly only?: PeopleOnly | null;
 };
 export type PlacePeopleSheet = {
   /** How many of each trade (the world's occupation columns), and the rows asked for: the most pressed first. */
@@ -219,6 +249,24 @@ export type PlacePeopleSheet = {
   /** The buildings one can be put at by name, and the homes with most room a household can be given. */
   readonly posts: readonly { readonly lot: number; readonly name: string }[];
   readonly homes: readonly { readonly lot: number; readonly room: number }[];
+  /**
+   * What it was asked (U5), as it was read: the name sought, the order and its way, the page, the grouping and the
+   * narrowing; and where its rows start among all that match (`all`), so many a page.
+   */
+  readonly ask: {
+    readonly q: string;
+    readonly sort: PeopleSort;
+    readonly up: boolean;
+    readonly page: number;
+    readonly group: PeopleGroup | null;
+    readonly only: PeopleOnly | null;
+  };
+  readonly from: number;
+  readonly most: number;
+  /** How many of those of the trade asked each ready narrowing holds (PEOPLE_ONLY's order). */
+  readonly only: readonly number[];
+  /** The groups its rows are under, in their order, each with how many of all that match it holds. */
+  readonly groups: readonly { readonly key: number; readonly name: string; readonly n: number }[];
 };
 /** One good on its Stocks sheet. */
 export type PlaceStockRow = {
@@ -335,6 +383,11 @@ export type PlaceWorkSheet = {
     readonly skills: readonly string[];
     readonly rows: readonly PlacePrioRow[];
     readonly all: number;
+    /** The name it was narrowed to (U5; "": none), its page, where its rows start among `all`, and so many a page. */
+    readonly q: string;
+    readonly page: number;
+    readonly from: number;
+    readonly most: number;
   };
 };
 /** One of a place's people on its priorities grid. */

@@ -870,7 +870,10 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
     const ref = town;
     if (tab === "people")
       stopSheet = d.client.subscribe<PlacePeopleSheet | null>(
-        { type: "place.people", args: { ref, occ: hud.occ, pins: barPins.all.map((x) => x.ref) } },
+        {
+          type: "place.people",
+          args: { ref, occ: hud.occ, pins: barPins.all.map((x) => x.ref), ...hud.peopleArgs },
+        },
         SHEET_EVERY,
         (s) => timed(() => s && pinsAway(s)),
       );
@@ -882,7 +885,7 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
       );
     else if (tab === "work")
       stopSheet = d.client.subscribe<PlaceWorkSheet | null>(
-        { type: "place.work", args: { ref, occ: hud.gridOcc } },
+        { type: "place.work", args: { ref, occ: hud.gridOcc, q: hud.gridQ, page: hud.gridPage } },
         SHEET_EVERY,
         (s) => timed(() => s && hud.work(s)),
       );
@@ -906,6 +909,23 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
       );
   };
 
+  /**
+   * The sheet read again at once, an order given: it shows as soon as it is given; and the one inspected, on whose page a
+   * key may have given it.
+   */
+  const ordered = (): void => {
+    sheet(hud.tab);
+    const of = inspector.ref;
+    if (town && of)
+      void d.client
+        .query<PlaceInspect | null>({ type: "place.inspect", args: { ref: town, of } })
+        .then(
+          (x) => {
+            if (x && !("error" in x) && inspector.ref === of) timed(() => inspector.show(x));
+          },
+          () => undefined,
+        );
+  };
   const order = async (type: string, args: Record<string, unknown>): Promise<string | null> => {
     if (!town) return "no town is entered";
     if (mode === "watch") return "the town is watched: no order is given it";
@@ -920,19 +940,7 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
       // (Lessons done by it, G1.)
       if (type === "place.zone" && args.zone !== null) hud.lesson("zone");
       if (type === "town.ask" && args.kind === "raise") hud.lesson("build");
-      // (The sheet read again at once: an order shows as soon as it is given; and the one inspected, on whose page a key
-      // may have given it.)
-      sheet(hud.tab);
-      const of = inspector.ref;
-      if (of)
-        void d.client
-          .query<PlaceInspect | null>({ type: "place.inspect", args: { ref: town, of } })
-          .then(
-            (x) => {
-              if (x && !("error" in x) && inspector.ref === of) timed(() => inspector.show(x));
-            },
-            () => undefined,
-          );
+      ordered();
       return null;
     } catch (error) {
       return (error as Error).message;
@@ -1167,6 +1175,43 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
     laid();
   };
   hud.onOrder = (type, args) => void order(type, args);
+  // (One order given to many, U5: each one's own command, one after another, and the sheet read once after all.)
+  hud.onOrders = async (type, each) => {
+    if (!town) return each.map(() => "no town is entered");
+    if (mode === "watch") return each.map(() => "the town is watched: no order is given it");
+    const at = town,
+      out: (string | null)[] = [];
+    for (const args of each)
+      out.push(
+        await d.client.command(type, { town: at, ...args }).then(
+          () => null,
+          (error: unknown) => (error as Error).message,
+        ),
+      );
+    ordered();
+    return out;
+  };
+  // (Many pinned or let go of, U5: each as a person's page does it, on the people bar too where the god game knows them.)
+  hud.onPins = async (each, on) => {
+    if (!town) return each.map(() => "no town is entered");
+    const at = town,
+      out: (string | null)[] = [];
+    for (const x of each)
+      out.push(
+        await d.client.query({ type: "place.pin", args: { ref: at, id: x.id, on } }).then(
+          () => {
+            if (!x.ref.startsWith("plc:")) {
+              if (on && !barPins.has(x.ref)) barPins.toggle(x.ref, x.name);
+              else if (!on && barPins.has(x.ref)) barPins.off(x.ref);
+            }
+            return null;
+          },
+          (error: unknown) => (error as Error).message,
+        ),
+      );
+    ordered();
+    return out;
+  };
   hud.onMode = (next) => void flow.mode(next);
   hud.onStay = (on) => watch.stay(on);
   hud.onNext = () => watch.next();

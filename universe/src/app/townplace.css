@@ -2571,3 +2571,122 @@ body.placing:has(.page-window:not([hidden])) .place-tag {
   opacity: 0.35;
   cursor: default;
 }
+/* People at scale (U5): a name box with the key to pick many beside it, the ready narrowings after the trades, the page
+   and its grouping in one line, the columns' keys over the rows, a group's head with its count, and picking many. Every
+   key a fingertip's; the box's text a phone's own size (16 px), so a phone does not zoom to it as it is typed in. */
+.place-find {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+.place-hud .place-find-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 44px;
+  box-sizing: border-box;
+  padding: 0 10px;
+  border: 1px solid rgba(190, 205, 255, 0.55);
+  border-radius: 8px;
+  background: rgba(4, 12, 40, 0.55);
+  color: #fff;
+  font: inherit;
+  font-size: 16px;
+}
+.place-hud .place-find-input::placeholder {
+  color: rgba(214, 226, 255, 0.7);
+}
+.place-hud .place-pick-key {
+  flex: 0 0 auto;
+  padding: 0 10px;
+}
+.place-hud .place-only-chip {
+  border-style: dashed;
+}
+.place-hud .place-only-chip.on {
+  border-style: solid;
+}
+.place-pager {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+  margin: 4px 0;
+}
+.place-page-words {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+.place-hud .place-pager button {
+  flex: 0 0 auto;
+  padding: 0 8px;
+}
+.place-hud .place-pager button:disabled,
+.place-hud .place-pick-bar button:disabled {
+  opacity: 0.45;
+}
+.place-sort-row {
+  display: flex;
+  gap: 4px;
+  margin: 4px 0 6px;
+}
+.place-hud .place-sort {
+  flex: 1 1 0;
+  min-width: 44px;
+  padding: 0 4px;
+  font-size: 13px;
+}
+.place-group-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  margin: 6px 0 0;
+  padding: 4px 4px 2px;
+  border-bottom: 1px solid rgba(190, 205, 255, 0.35);
+  font-weight: 700;
+  font-size: 13px;
+}
+.place-group-n {
+  flex: 0 0 auto;
+  font-weight: 400;
+  opacity: 0.85;
+  font-variant-numeric: tabular-nums;
+}
+.place-person.picking {
+  grid-template-columns: auto 1fr;
+}
+.place-hud .place-pick-one {
+  min-width: 56px;
+}
+.place-hud .place-person.picked .place-person-row {
+  background: rgba(111, 240, 207, 0.22);
+}
+.place-pick-bar {
+  margin: 0 0 6px;
+  padding: 6px;
+  border: 1px solid rgba(190, 205, 255, 0.35);
+  border-radius: 8px;
+}
+.place-pick-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+}
+.place-pick-count {
+  flex: 1 1 auto;
+  font-variant-numeric: tabular-nums;
+}
+.place-hud .place-pick-top button {
+  padding: 0 8px;
+}
+.place-pick-said {
+  margin: 6px 0 0;
+  font-size: 13px;
+}
+.place-grid-find {
+  margin: 4px 0;
+}
