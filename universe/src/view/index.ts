@@ -1068,6 +1068,7 @@ export {
   followWords,
   gap,
   kin,
+  lightAt,
   newDrop,
   prospered,
   prosperedWords,

@@ -202,6 +202,7 @@ import { writtenIndex, writtenRead } from "./inspect/written.ts";
 import { WEALTH_QUERIES } from "./wealth.ts";
 import { installYears } from "./years.ts";
 import { installPlaces, settleOf } from "./place.ts";
+import { installSaga, sagaQueries } from "./saga.ts";
 import { placeQueries } from "./placeplan.ts";
 import { placeModeQueries } from "./placewatch.ts";
 import { placeInspectQueries } from "./placeinspect.ts";
@@ -977,6 +978,8 @@ function planetUniverse(name: string, prior: Prior): Universe {
       installYears(world);
       // (Its towns entered, kept in detail: nothing of them until one is entered, no part of the rules. host/place.ts.)
       installPlaces(world);
+      // (Its lines lived, Live a Line: nothing until one is, no part of the rules. host/saga.ts.)
+      installSaga(world);
       return world;
     };
   let rules: string | null = null;
@@ -1585,6 +1588,7 @@ function planetUniverse(name: string, prior: Prior): Universe {
       "village.plan": villagePlanQuery,
       // (A town entered and kept in detail: its people for the plan's, and where they are. host/placeplan.ts.)
       ...placeQueries(villagePlanQuery),
+      ...sagaQueries(),
       ...placeModeQueries(),
       ...placeInspectQueries(),
       ...placeOverlayQueries(),

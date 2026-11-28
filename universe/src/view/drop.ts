@@ -21,7 +21,7 @@ export const FIELD_H = 135;
 /** A step of the drop's time (seconds). */
 export const STEP = 1 / 30;
 /** The most lives a drop holds (crowded, none divides), and the most of the larger kinds. */
-const MOST = 240;
+export const MOST = 240;
 const MOST_OF: Readonly<Record<Way, number>> = {
   eater: 160,
   light: 110,
@@ -32,8 +32,8 @@ const MOST_OF: Readonly<Record<Way, number>> = {
 const MOST_MOTES = 360;
 
 /** How fast each kind moves (µm a second) and what it spends to keep alive, by its size. */
-const SPEED: Readonly<Record<Way, number>> = { eater: 14, light: 3, hunter: 7, colony: 4, rock: 3 };
-const UPKEEP: Readonly<Record<Way, number>> = {
+export const SPEED: Readonly<Record<Way, number>> = { eater: 14, light: 3, hunter: 7, colony: 4, rock: 3 };
+export const UPKEEP: Readonly<Record<Way, number>> = {
   eater: 0.03,
   light: 0.025,
   hunter: 0.01,
@@ -41,7 +41,7 @@ const UPKEEP: Readonly<Record<Way, number>> = {
   rock: 0.025,
 };
 /** What a light-eater makes of full light, a second, by its own worth. */
-const SUN: Readonly<Record<Way, number>> = {
+export const SUN: Readonly<Record<Way, number>> = {
   eater: 0,
   light: 0.16,
   hunter: 0,
@@ -49,14 +49,14 @@ const SUN: Readonly<Record<Way, number>> = {
   rock: 0,
 };
 /** What a rock-eater makes of its grain's chemistry, a second, by its own worth, on the grain (less as it is further). */
-const ROCK = 0.11;
+export const ROCK = 0.11;
 /** How far beyond its grain's edge a rock-eater still gets anything of it (µm). */
-const ROCK_REACH = 22;
+export const ROCK_REACH = 22;
 /** A mote's worth to the cell that eats it; what a hunter makes of a cell it takes in, by its worth. */
-const MOTE = 1.5;
-const DIGEST = 1.6;
+export const MOTE = 1.5;
+export const DIGEST = 1.6;
 /** How far each kind's daughters may drift from it, a generation (size, speed). */
-const DRIFT: Readonly<Record<Way, number>> = {
+export const DRIFT: Readonly<Record<Way, number>> = {
   eater: 0.03,
   light: 0.07,
   hunter: 0.05,
@@ -130,7 +130,7 @@ function seeded(seed: number): () => number {
 }
 
 /** About normal, mean 0 and spread 1. */
-function normal(rnd: () => number): number {
+export function normal(rnd: () => number): number {
   return (rnd() + rnd() + rnd() - 1.5) * 2;
 }
 
@@ -140,11 +140,11 @@ export function worth(size: number): number {
 }
 
 /** The light where a cell is: the drop's own, brighter toward its top where it is water. */
-function lightAt(s: DropState, y: number): number {
+export function lightAt(s: DropState, y: number): number {
   return s.habitat === "soil" ? s.light : s.light * (1 - 0.6 * (y / FIELD_H));
 }
 
-function wrap(v: number, size: number): number {
+export function wrap(v: number, size: number): number {
   return v < 0 ? v + size : v >= size ? v - size : v;
 }
 
@@ -157,12 +157,12 @@ export function gap(a: number, b: number, size: number): number {
 }
 
 /** The way down from a to b: across the wrap in soil; in water, between its surface and floor. */
-function gapY(s: DropState, a: number, b: number): number {
+export function gapY(s: DropState, a: number, b: number): number {
   return s.habitat === "soil" ? gap(a, b, FIELD_H) : b - a;
 }
 
 /** Where a cell may stand down the drop. */
-function placeY(s: DropState, y: number): number {
+export function placeY(s: DropState, y: number): number {
   return s.habitat === "soil" ? wrap(y, FIELD_H) : Math.min(FIELD_H - 0.5, Math.max(0.5, y));
 }
 

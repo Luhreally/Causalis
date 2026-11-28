@@ -49,8 +49,8 @@ export class PlaceLoading {
     return !this.element.hidden;
   }
 
-  /** Shown for a town: its words, and its steps all still to come. */
-  show(x: PlaceLoadingFacts): void {
+  /** Shown for a town (or another mode's place, with its own steps): its words, and its steps all still to come. */
+  show(x: PlaceLoadingFacts, steps: readonly string[] = LOADING_STEPS): void {
     this.began = performance.now();
     this.year = x.year;
     this.season = null;
@@ -58,7 +58,7 @@ export class PlaceLoading {
     this.said(x.air);
     this.facts.replaceChildren(...x.facts.slice(0, 2).map((f) => el("li", "", f)));
     this.steps.replaceChildren(
-      ...LOADING_STEPS.map((words, k) => {
+      ...steps.map((words, k) => {
         const li = el("li", "place-load-step");
         li.dataset.step = String(k);
         li.append(el("span", "place-load-mark", "·"), el("span", "", words));

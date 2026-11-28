@@ -417,6 +417,7 @@ import { installHome, type HomeAsk } from "./home.ts";
 import { installMoney } from "./money.ts";
 import type { PlaceFlow } from "./townplace.ts";
 import { lazyPlace } from "./townlazy.ts";
+import { lazyLine } from "./linelazy.ts";
 import type { PlaceTab } from "../ui/index.ts";
 import { installLeaders } from "./leaders.ts";
 import { installLife } from "./life.ts";
@@ -1614,6 +1615,8 @@ type Exposed = {
   bubblesNow?: () => { key: string; text: string; at: { x: number; y: number } | null }[];
   /** The camera's rig, for the look tools. */
   rig?: OrbitRig;
+  /** Live a Line entered (its chunk fetched on the first: app/linelazy.ts). */
+  line?: { readonly on: boolean; open(from?: string | null): Promise<void> };
   /** The genesis played (Phase 24): its stage and clock, the seed as the hand left it, its drop. */
   genesis?: () => unknown;
   /**
@@ -10913,6 +10916,28 @@ async function runPlanetPage(): Promise<void> {
   placePlan = placeFlow.planRead;
   villagePanel.onPlace = () => void placeFlow.toggle();
   stage.onUpdate(() => placeFlow.frame());
+  // Live a Line (its chunk fetched when first entered): from the world's first cells, or from a line of its tree of life.
+  const lineFlow = lazyLine({ hud, client, stage, rig, time });
+  exposed.line = lineFlow;
+  planetPanel.onLine = () => void lineFlow.open(null);
+  {
+    const acted = pageWindow.sceneActions;
+    pageWindow.sceneActions = (page) =>
+      page.kind === "clade" || page.kind === "lineage"
+        ? [
+            ...acted(page),
+            {
+              label: "🧬 Live this line",
+              title: "Live this line by hand, from one of its first cells",
+              on: false,
+              run: () => {
+                pageWindow.close();
+                void lineFlow.open(page.ref);
+              },
+            },
+          ]
+        : acted(page);
+  }
   // (For the look tools: the town entered, what its line tells, where its people are as last told.)
   exposed.place = {
     toggle: () => placeFlow.toggle(),
@@ -11433,7 +11458,7 @@ async function runPlanetPage(): Promise<void> {
     client,
     () => {
       if (
-        ["filming", "fleet-filming", "homing", "living", "placing", "possessing", "ruling"].some(
+        ["filming", "fleet-filming", "homing", "living", "placing", "possessing", "ruling", "lining"].some(
           (c) => document.body.classList.contains(c),
         )
       )

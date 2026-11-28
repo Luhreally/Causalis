@@ -481,9 +481,17 @@ export class SimHost {
           this.reply(m.id, { id: c.id, t: c.t });
           return;
         }
-        case "query":
-          this.reply(m.id, this.answer(m.query));
+        case "query": {
+          const value = this.answer(m.query);
+          // (An asking answered once its code is fetched: a mode's own, host/saga.ts.)
+          if (value instanceof Promise)
+            value.then(
+              (v) => this.reply(m.id, v),
+              (e) => this.fail(m.id, e),
+            );
+          else this.reply(m.id, value);
           return;
+        }
         case "subscribe":
           this.subscriptions.set(m.id, {
             query: m.query,
