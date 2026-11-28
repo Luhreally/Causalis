@@ -387,6 +387,28 @@ export class TownStore implements StateStore {
   get(town: Ref): Fabric | undefined {
     return this.map.get(town) ?? this.seen?.(town);
   }
+  /** How many times a fabric has been added or the store loaded: what fabricsOf keeps its lists by. Not hashed, not saved. */
+  private added = 0;
+  private readonly lists = new WeakMap<
+    readonly Settlement[],
+    { n: number; at: number; pairs: [Settlement, Fabric][] }
+  >();
+  /**
+   * The settlements of a list (a land's, as SettlementStore.kept holds it) that have a fabric, each with it (as of), in the
+   * list's order: kept until a fabric is added or the store loaded, or the list grows (a land's list only grows). A land's
+   * hamlets have none, and asking each of them by of was most of the roofless's year.
+   */
+  fabricsOf(list: readonly Settlement[]): readonly [Settlement, Fabric][] {
+    const kept = this.lists.get(list);
+    if (kept && kept.n === list.length && kept.at === this.added) return kept.pairs;
+    const pairs: [Settlement, Fabric][] = [];
+    for (const s of list) {
+      const f = this.of(s);
+      if (f) pairs.push([s, f]);
+    }
+    this.lists.set(list, { n: list.length, at: this.added, pairs });
+    return pairs;
+  }
   /** A settlement's fabric (as get, by the settlement). */
   of(s: Settlement): Fabric | undefined {
     let f = this.bySettlement.get(s);
@@ -463,6 +485,7 @@ export class TownStore implements StateStore {
     return [...this.map.values()].sort((a, b) => (a.town < b.town ? -1 : 1));
   }
   add(f: Fabric): Fabric {
+    this.added++;
     this.map.set(f.town, f);
     this.fold(f.town, FOLD.found, TOWN_FAMILIES.indexOf(f.family));
     return f;
@@ -517,6 +540,7 @@ export class TownStore implements StateStore {
   load(state: unknown): void {
     // (Town by town, in a save from before Phase 66.)
     const s = state as { digest: [number, number]; fabrics?: Saved[]; towns?: SavedColumns };
+    this.added++;
     this.map.clear();
     this.bySettlement.clear();
     this.atSettlement.length = 0;
