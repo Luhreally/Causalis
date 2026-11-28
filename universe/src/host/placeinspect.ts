@@ -73,7 +73,7 @@ import { placeCivic } from "./placecivic.ts";
 import { placeWhy } from "./placewhy.ts";
 import { placeLevels } from "./placelevels.ts";
 import { placeBeasts } from "./placebeasts.ts";
-import { placeHelp } from "./placehelp.ts";
+import { placeHelp, placeTownPages } from "./placehelp.ts";
 import { placeWhatNow } from "./placewhatnow.ts";
 import { placeInventory } from "./placeinventory.ts";
 import { bondWords, placeBound } from "./placebound.ts";
@@ -1154,6 +1154,8 @@ function lotZone(
 export function placeInspect(world: World, town: string, ref: string): PlaceInspect | null {
   // (A page of words, the same for every town: G2.)
   if (ref.startsWith("plch:")) return placeHelp(town, ref.slice(ref.indexOf("|") + 1));
+  // (The town's own pages listed, U3: words and refs, no place made by asking.)
+  if (ref.startsWith("plct:")) return placeTownPages(town);
   const place = enterPlace(world, town);
   if (!place) return null;
   if (ref.startsWith("plcb:")) return placeBelow(world, place);

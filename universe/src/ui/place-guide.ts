@@ -79,6 +79,15 @@ export const LESSONS: readonly Lesson[] = [
     first: "Tap a building in the town first: Inside ▸ is on its page.",
   },
   {
+    id: "town",
+    title: "The town's own pages",
+    words:
+      "🏘️ Town at the foot lists the town's own pages: below ground, its legends, its gate, its bound, its faith, what it lives on, its works and orders, its beasts. Each is a tap away.",
+    show: '.place-tab[data-tab="town"]',
+    first:
+      "Town is at the foot when the town is run by hand or by its head; when it is watched, it is in ≡.",
+  },
+  {
     id: "alert",
     title: "Answer an alert",
     words:

@@ -5,7 +5,12 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { HELP, helpTopic } from "../../src/host/placehelp.ts";
 import { placeInspect } from "../../src/host/placeinspect.ts";
-import { placeHelpRef, type PlaceInspectHelp } from "../../src/bridge/index.ts";
+import {
+  placeHelpRef,
+  placeTownRef,
+  type PlaceInspectHelp,
+  type PlaceInspectTown,
+} from "../../src/bridge/index.ts";
 import { noTown, placeWorld, townWhere } from "./worlds.ts";
 
 const SHEETS = ["people", "stocks", "work", "build", "dangers", "log"],
@@ -32,6 +37,7 @@ const SHEETS = ["people", "stocks", "work", "build", "dangers", "log"],
     "why",
     "levels",
     "beasts",
+    "townpages",
   ];
 
 test("every sheet, tab and page has its own words: what it is, and what you can do", (t) => {
@@ -53,4 +59,21 @@ test("every sheet, tab and page has its own words: what it is, and what you can 
   assert.equal(x.kind, "help");
   assert.equal(x.ref, placeHelpRef(s.ref, "sheet:log"));
   assert.match(x.name, /Log/);
+  // (The town's own pages listed, U3: the eight and its ground level by level, each opening its own page.)
+  const list = placeInspect(w, s.ref, placeTownRef(s.ref)) as PlaceInspectTown;
+  assert.equal(list.kind, "townpages");
+  assert.equal(list.ref, placeTownRef(s.ref));
+  assert.equal(list.pages.length, 9, "the eight and the ground level by level");
+  const kinds = list.pages.map((p) => placeInspect(w, s.ref, p.ref)?.kind);
+  assert.deepEqual(kinds, [
+    "below",
+    "levels",
+    "legends",
+    "gate",
+    "bound",
+    "faith",
+    "making",
+    "civic",
+    "beasts",
+  ]);
 });

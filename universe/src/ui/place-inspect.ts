@@ -20,6 +20,7 @@ import type {
   PlaceInspectCivic,
   PlaceInspectWhy,
   PlaceInspectHelp,
+  PlaceInspectTown,
   PlaceInspectWhatNow,
   PlaceInspectCharacter,
   PlaceInspectDead,
@@ -43,6 +44,7 @@ import { insideEl } from "./place-inside.ts";
 import { fieldsEl } from "./place-fields.ts";
 import { belowEl } from "./place-below.ts";
 import { levelsEl } from "./place-levels.ts";
+import { captioned } from "./place-hud.ts";
 import type { VillagePlan } from "../bridge/index.ts";
 
 export type InspectHeight = "peek" | "half" | "full";
@@ -83,14 +85,36 @@ export class PlaceInspector {
   private readonly portrait = el("canvas", "place-insp-portrait");
   private readonly title = el("h2", "place-insp-name");
   private readonly sub = el("p", "place-insp-sub");
-  private readonly followKey = el("button", "place-insp-key place-insp-follow", "🎯");
+  // (Each key's sign given its word under it, U3: a phone shows no title. One row on every page, each key in its place:
+  // ‹ › … ? 🎯 ⓘ 📖 ×, one that does not serve the page shown greyed, never gone.)
+  private readonly followKey = captioned(
+    el("button", "place-insp-key place-insp-follow"),
+    "🎯",
+    "Follow",
+  );
   /** Back to whom or what was inspected before, the eye where it was (from the first: closed); and forward again. */
-  private readonly backKey = el("button", "place-insp-key place-insp-back", "‹");
-  private readonly aheadKey = el("button", "place-insp-key place-insp-ahead", "›");
-  private readonly proseKey = el("button", "place-insp-key place-insp-info", "ⓘ");
-  private readonly pageKey = el("button", "place-insp-key place-insp-page", "📖");
+  private readonly backKey = captioned(el("button", "place-insp-key place-insp-back"), "‹", "Back");
+  private readonly aheadKey = captioned(
+    el("button", "place-insp-key place-insp-ahead"),
+    "›",
+    "Forward",
+  );
+  private readonly proseKey = captioned(
+    el("button", "place-insp-key place-insp-info"),
+    "ⓘ",
+    "Words",
+  );
+  private readonly pageKey = captioned(
+    el("button", "place-insp-key place-insp-page"),
+    "📖",
+    "Page",
+  );
   /** What this page or tab is, in plain words (G2). */
-  private readonly helpKey = el("button", "place-insp-key place-insp-helpkey", "?");
+  private readonly helpKey = captioned(
+    el("button", "place-insp-key place-insp-helpkey"),
+    "?",
+    "Help",
+  );
   private readonly body = el("div", "place-insp-body");
   /** What is inspected now (null: nothing), and the last reading of it. */
   ref: string | null = null;
@@ -140,7 +164,7 @@ export class PlaceInspector {
 
   constructor(root: HTMLElement) {
     this.handle.title = "Taller or shorter";
-    this.handle.setAttribute("aria-label", "Show more of it, or less");
+    this.handleWords();
     this.handle.onclick = () =>
       this.setHeight(HEIGHTS[(HEIGHTS.indexOf(this.height) + 1) % HEIGHTS.length]!);
     this.followKey.onclick = () => this.onFollow(!this.following);
@@ -179,7 +203,7 @@ export class PlaceInspector {
       const x = this.now;
       if (x) this.onHelp(x.kind === "person" ? `tab:${this.tab}` : `page:${x.kind}`);
     };
-    const shut = el("button", "place-insp-key place-insp-shut", "×");
+    const shut = captioned(el("button", "place-insp-key place-insp-shut"), "×", "Close");
     shut.setAttribute("aria-label", "Close");
     shut.onclick = () => this.onClose();
     const head = el("header", "place-insp-head"),
@@ -187,9 +211,9 @@ export class PlaceInspector {
       keys = el("div", "place-insp-keys");
     this.portrait.width = this.portrait.height = PORTRAIT;
     names.append(this.title, this.sub);
+    // (The one row of keys every page has, U3: 🎯 ⓘ 📖 ×. What this is, G2, at the end of the name's row: among the keys
+    // above, each with its word under it, it squeezed the grip beside them to 2 px on a phone.)
     keys.append(this.followKey, this.proseKey, this.pageKey, shut);
-    // (What this is, G2: at the end of the name's row, where there is room at every size; among the keys above, it
-    // squeezed the handle beside them past a fingertip on a phone.)
     head.append(this.portrait, names, this.helpKey);
     // (Its keys in a row of their own above the name: back and forward, the handle between, the rest.)
     const top = el("div", "place-insp-top");
@@ -246,7 +270,18 @@ export class PlaceInspector {
   setHeight(h: InspectHeight): void {
     this.height = h;
     this.element.dataset.height = h;
+    this.handleWords();
     this.onHeight(h);
+  }
+  /** The handle's words (U3): what a tap on it does, in a word, not a bare bar whose meaning was only in a title. */
+  private handleWords(): void {
+    const more = this.height !== "full",
+      words = more ? "▲ More" : "▼ Less";
+    if (this.handle.textContent !== words) this.handle.textContent = words;
+    this.handle.setAttribute(
+      "aria-label",
+      more ? "Show more of it: taller" : "Show less of it: down to a peek",
+    );
   }
   /** What it shows, read again. */
   show(x: PlaceInspect | null): void {
@@ -284,8 +319,10 @@ export class PlaceInspector {
     if (key === this.drawn) return;
     this.drawn = key;
     this.element.dataset.kind = x.kind;
-    this.followKey.hidden = x.kind !== "person";
-    this.helpKey.hidden = x.kind === "help";
+    // (Greyed where it does not serve, never gone: each key in the same place on every page, U3.)
+    this.followKey.disabled = x.kind !== "person";
+    this.proseKey.disabled = x.kind !== "person";
+    this.helpKey.disabled = x.kind === "help";
     this.followKey.classList.toggle("on", this.following);
     const fw = this.following ? "Let them go: the eye stays" : "Keep the eye with them";
     this.followKey.title = fw;
@@ -312,6 +349,7 @@ export class PlaceInspector {
     else if (x.kind === "beasts") this.beasts(x);
     else if (x.kind === "help") this.help(x);
     else if (x.kind === "whatnow") this.whatNow(x);
+    else if (x.kind === "townpages") this.townPages(x);
     else this.lot(x);
   }
 
@@ -331,156 +369,151 @@ export class PlaceInspector {
     if (this.title.textContent !== x.name) this.title.textContent = x.name;
     this.sub.textContent = `${cap(x.trade)}, ${x.age}${x.bound ? ` · by order: ${x.bound}` : ""}`;
     const body: HTMLElement[] = [];
-    // The first screen: what they are at, their mood, how they are, their needs.
+    // What they are at; then their tabs in one row (U3: every tab in reach at half the screen on a phone, where a second
+    // row of them lay under the fold, four taps from entering); then the tab open, right under them.
     const now = el("p", "place-insp-now", x.now);
-    body.push(now, this.moodBar(x));
-    if (x.healthWords || x.lack > 0) {
-      const h = el(
-        "p",
-        `place-insp-health${x.health === 1 || x.health === 2 || x.lack > 0 ? " bad" : ""}`,
-        [x.healthWords, x.lack > 0 ? `${x.lack} ${x.lack === 1 ? "day" : "days"} in want` : null]
-          .filter(Boolean)
-          .join(" · "),
+    body.push(now, this.tabRow());
+    const first = this.tab === "now";
+    if (first || this.tab === "mood") body.push(this.moodBar(x));
+    // The first tab: their mood, how they are, their needs, their keys and orders, why, where.
+    if (first) {
+      if (x.healthWords || x.lack > 0) {
+        const h = el(
+          "p",
+          `place-insp-health${x.health === 1 || x.health === 2 || x.lack > 0 ? " bad" : ""}`,
+          [x.healthWords, x.lack > 0 ? `${x.lack} ${x.lack === 1 ? "day" : "days"} in want` : null]
+            .filter(Boolean)
+            .join(" · "),
+        );
+        body.push(h);
+      }
+      const needs = el("div", "place-insp-needs");
+      for (const n of x.needs) needs.append(this.needBar(n, x.serves));
+      body.push(needs);
+      // (Their table, and what they take and need: P4.)
+      body.push(el("p", "place-insp-why place-insp-table", x.table));
+      if (x.takes) body.push(el("p", "place-insp-why place-insp-takes", x.takes));
+      // (Held in bondage, and your word to free them: P6.)
+      if (x.bond) {
+        body.push(el("p", "place-insp-why place-insp-bond", `⛓️ ${x.bond}`));
+        if (x.freeable && this.orders) {
+          const free = el("button", "place-insp-free", "Free them");
+          free.setAttribute("aria-label", `Free ${x.name} from bondage by your word`);
+          free.onclick = () => this.onOrder("place.free", { person: x.id });
+          body.push(free);
+        }
+      }
+      // (How closely they are followed, and a key to follow them in full for good, or let them be. Tiers.)
+      const tier = el("div", "place-insp-tier"),
+        fixed = x.tier.pinned && !x.tier.soft,
+        pin = el(
+          "button",
+          `place-insp-pin${fixed ? " on" : ""}`,
+          fixed ? "★ Followed" : "☆ Follow closely",
+        );
+      tier.append(
+        el(
+          "span",
+          "place-insp-tier-words",
+          `${cap(x.tier.words)}${x.tier.pinned ? (fixed ? ", by your word" : ", while looked at") : ""}`,
+        ),
+        pin,
       );
-      body.push(h);
-    }
-    const needs = el("div", "place-insp-needs");
-    for (const n of x.needs) needs.append(this.needBar(n, x.serves));
-    body.push(needs);
-    // (Their table, and what they take and need: P4.)
-    body.push(el("p", "place-insp-why place-insp-table", x.table));
-    if (x.takes) body.push(el("p", "place-insp-why place-insp-takes", x.takes));
-    // (Held in bondage, and your word to free them: P6.)
-    if (x.bond) {
-      body.push(el("p", "place-insp-why place-insp-bond", `⛓️ ${x.bond}`));
-      if (x.freeable && this.orders) {
-        const free = el("button", "place-insp-free", "Free them");
-        free.setAttribute("aria-label", `Free ${x.name} from bondage by your word`);
-        free.onclick = () => this.onOrder("place.free", { person: x.id });
-        body.push(free);
+      pin.setAttribute("aria-pressed", String(fixed));
+      pin.title = fixed
+        ? `Let ${x.name} be followed as the town's story has them`
+        : `Follow ${x.name} in full, ten minutes at a time, whatever befalls them`;
+      pin.setAttribute("aria-label", pin.title);
+      pin.onclick = () => this.onPin(x.id, !fixed);
+      body.push(tier);
+      // (Their family, P3.)
+      const family = el("button", "place-insp-family", "Family ▸");
+      family.setAttribute(
+        "aria-label",
+        `${x.name}'s family: parents, brothers and sisters, children`,
+      );
+      family.onclick = () => this.onInspect(x.familyRef);
+      // (Their character and mind, R2.)
+      const character = el("button", "place-insp-character", "Character ▸");
+      character.setAttribute("aria-label", `${x.name}'s character and mind`);
+      character.onclick = () => this.onInspect(x.characterRef);
+      const links = el("div", "place-insp-links");
+      // (Their body and what it is written in, R4.)
+      const bodyKey = el("button", "place-insp-bodykey", "Body ▸");
+      bodyKey.setAttribute("aria-label", `${x.name}'s body, what it is made of and written in`);
+      bodyKey.onclick = () => this.onInspect(x.bodyRef);
+      // (Why they do what they do, R7: beside their family, character and body.)
+      const why = el("button", "place-insp-whykey", "Why? ▸");
+      why.setAttribute("aria-label", `Why ${x.name} does what they do`);
+      why.onclick = () => this.onInspect(x.whyRef);
+      // (What they hold, a tap from their first tab: U3.)
+      const gear = el("button", "place-insp-gearkey", "Gear ▸");
+      gear.setAttribute("aria-label", `What ${x.name} holds and wears`);
+      gear.onclick = () => this.toTab("gear");
+      links.append(family, character, bodyKey, why, gear);
+      body.push(links);
+      // (A hand's orders, by name: a trade, or let be.)
+      if (this.orders && x.trade !== "child") {
+        const row = el("div", "place-insp-orders"),
+          key = el("button", "place-insp-order", this.ordering ? "Orders ▴" : "Orders ▾");
+        key.setAttribute("aria-expanded", String(this.ordering));
+        key.onclick = () => {
+          this.ordering = !this.ordering;
+          this.redraw();
+        };
+        row.append(key);
+        if (this.ordering)
+          for (const [occ, words] of ORDER_TRADES) {
+            const b = el("button", "place-chip", words);
+            b.setAttribute(
+              "aria-label",
+              `Put ${x.name} to ${words === "Let be" ? "their own choosing" : words.toLowerCase()}`,
+            );
+            b.onclick = () => {
+              this.ordering = false;
+              this.onOrder("place.assign", { person: x.id, trade: occ, post: null });
+            };
+            row.append(b);
+          }
+        body.push(row);
+        // (Drafted by name, R9: under arms whatever the muster, standing where told: with the rest, at their home or their
+        // work; or stood down.)
+        if (this.ordering && x.age >= 0) {
+          const draft = el("div", "place-insp-orders place-insp-draft"),
+            at: [number, string][] = [
+              [-9, "⚔️ Draft"],
+              [x.home.lot, "⚔️ At their home"],
+              ...(x.work && x.work.lot >= 0
+                ? ([[x.work.lot, "⚔️ At their work"]] as [number, string][])
+                : []),
+            ];
+          for (const [lot, words] of at) {
+            const b = el("button", `place-chip${x.drafted === lot ? " on" : ""}`, words);
+            b.setAttribute(
+              "aria-label",
+              lot === -9
+                ? `Draft ${x.name}, to stand with those under arms`
+                : `Draft ${x.name}, to stand ${words.slice(3).toLowerCase()}`,
+            );
+            b.onclick = () => {
+              this.ordering = false;
+              this.onOrder("place.draft", { person: x.id, at: lot });
+            };
+            draft.append(b);
+          }
+          if (x.drafted !== null) {
+            const b = el("button", "place-chip place-insp-undraft", "Stand down");
+            b.setAttribute("aria-label", `Stand ${x.name} down`);
+            b.onclick = () => {
+              this.ordering = false;
+              this.onOrder("place.draft", { person: x.id, at: null });
+            };
+            draft.append(b);
+          }
+          body.push(draft);
+        }
       }
     }
-    // (How closely they are followed, and a key to follow them in full for good, or let them be. Tiers.)
-    const tier = el("div", "place-insp-tier"),
-      fixed = x.tier.pinned && !x.tier.soft,
-      pin = el(
-        "button",
-        `place-insp-pin${fixed ? " on" : ""}`,
-        fixed ? "★ Followed" : "☆ Follow closely",
-      );
-    tier.append(
-      el(
-        "span",
-        "place-insp-tier-words",
-        `${cap(x.tier.words)}${x.tier.pinned ? (fixed ? ", by your word" : ", while looked at") : ""}`,
-      ),
-      pin,
-    );
-    pin.setAttribute("aria-pressed", String(fixed));
-    pin.title = fixed
-      ? `Let ${x.name} be followed as the town's story has them`
-      : `Follow ${x.name} in full, ten minutes at a time, whatever befalls them`;
-    pin.setAttribute("aria-label", pin.title);
-    pin.onclick = () => this.onPin(x.id, !fixed);
-    body.push(tier);
-    // (Their family, P3.)
-    const family = el("button", "place-insp-family", "Family ▸");
-    family.setAttribute(
-      "aria-label",
-      `${x.name}'s family: parents, brothers and sisters, children`,
-    );
-    family.onclick = () => this.onInspect(x.familyRef);
-    // (Their character and mind, R2.)
-    const character = el("button", "place-insp-character", "Character ▸");
-    character.setAttribute("aria-label", `${x.name}'s character and mind`);
-    character.onclick = () => this.onInspect(x.characterRef);
-    const links = el("div", "place-insp-links");
-    // (Their body and what it is written in, R4.)
-    const bodyKey = el("button", "place-insp-bodykey", "Body ▸");
-    bodyKey.setAttribute("aria-label", `${x.name}'s body, what it is made of and written in`);
-    bodyKey.onclick = () => this.onInspect(x.bodyRef);
-    // (Why they do what they do, R7: beside their family, character and body.)
-    const why = el("button", "place-insp-whykey", "Why? ▸");
-    why.setAttribute("aria-label", `Why ${x.name} does what they do`);
-    why.onclick = () => this.onInspect(x.whyRef);
-    links.append(family, character, bodyKey, why);
-    body.push(links);
-    // (A hand's orders, by name: a trade, or let be.)
-    if (this.orders && x.trade !== "child") {
-      const row = el("div", "place-insp-orders"),
-        key = el("button", "place-insp-order", this.ordering ? "Orders ▴" : "Orders ▾");
-      key.setAttribute("aria-expanded", String(this.ordering));
-      key.onclick = () => {
-        this.ordering = !this.ordering;
-        this.redraw();
-      };
-      row.append(key);
-      if (this.ordering)
-        for (const [occ, words] of ORDER_TRADES) {
-          const b = el("button", "place-chip", words);
-          b.setAttribute(
-            "aria-label",
-            `Put ${x.name} to ${words === "Let be" ? "their own choosing" : words.toLowerCase()}`,
-          );
-          b.onclick = () => {
-            this.ordering = false;
-            this.onOrder("place.assign", { person: x.id, trade: occ, post: null });
-          };
-          row.append(b);
-        }
-      body.push(row);
-      // (Drafted by name, R9: under arms whatever the muster, standing where told: with the rest, at their home or their
-      // work; or stood down.)
-      if (this.ordering && x.age >= 0) {
-        const draft = el("div", "place-insp-orders place-insp-draft"),
-          at: [number, string][] = [
-            [-9, "⚔️ Draft"],
-            [x.home.lot, "⚔️ At their home"],
-            ...(x.work && x.work.lot >= 0
-              ? ([[x.work.lot, "⚔️ At their work"]] as [number, string][])
-              : []),
-          ];
-        for (const [lot, words] of at) {
-          const b = el("button", `place-chip${x.drafted === lot ? " on" : ""}`, words);
-          b.setAttribute(
-            "aria-label",
-            lot === -9
-              ? `Draft ${x.name}, to stand with those under arms`
-              : `Draft ${x.name}, to stand ${words.slice(3).toLowerCase()}`,
-          );
-          b.onclick = () => {
-            this.ordering = false;
-            this.onOrder("place.draft", { person: x.id, at: lot });
-          };
-          draft.append(b);
-        }
-        if (x.drafted !== null) {
-          const b = el("button", "place-chip place-insp-undraft", "Stand down");
-          b.setAttribute("aria-label", `Stand ${x.name} down`);
-          b.onclick = () => {
-            this.ordering = false;
-            this.onOrder("place.draft", { person: x.id, at: null });
-          };
-          draft.append(b);
-        }
-        body.push(draft);
-      }
-    }
-    // The tabs, and the one open.
-    const tabs = el("div", "place-insp-tabs");
-    for (const [t, words] of PERSON_TABS) {
-      const b = el("button", "place-insp-tab", words);
-      b.dataset.tab = t;
-      b.classList.toggle("on", this.tab === t);
-      b.onclick = () => {
-        this.tab = t;
-        this.onTabbed(t);
-        if (this.height === "peek") this.setHeight("half");
-        this.redraw();
-      };
-      tabs.append(b);
-    }
-    body.push(tabs);
     if (this.tab === "now") {
       body.push(el("p", "place-insp-why", x.why));
       body.push(
@@ -703,6 +736,47 @@ export class PlaceInspector {
       body.push(box);
     }
     this.body.replaceChildren(...body);
+  }
+
+  /** A person's tabs, one row (U3): a tap opens one, the inspector raised from a peek to half the screen. */
+  private tabRow(): HTMLElement {
+    const tabs = el("div", "place-insp-tabs");
+    for (const [t, words] of PERSON_TABS) {
+      const b = el("button", "place-insp-tab", words);
+      b.dataset.tab = t;
+      b.classList.toggle("on", this.tab === t);
+      b.setAttribute("aria-pressed", String(this.tab === t));
+      b.onclick = () => this.toTab(t);
+      tabs.append(b);
+    }
+    return tabs;
+  }
+  private toTab(t: PersonTab): void {
+    this.tab = t;
+    this.onTabbed(t);
+    if (this.height === "peek") this.setHeight("half");
+    this.redraw();
+    this.body.scrollTop = 0;
+  }
+
+  /** The town's own pages listed (U3): each a row, a tap away; Back comes here again. */
+  private townPages(x: PlaceInspectTown): void {
+    this.picture(x);
+    const title = `${x.icon} ${x.name}`;
+    if (this.title.textContent !== title) this.title.textContent = title;
+    if (this.sub.textContent !== x.sub) this.sub.textContent = x.sub;
+    const box = el("div", "place-insp-people place-town-pages");
+    for (const p of x.pages) {
+      const b = el("button", "place-insp-person place-town-row");
+      b.dataset.ref = p.ref;
+      b.append(
+        el("span", "place-row-name", `${p.icon} ${p.name} ▸`),
+        el("span", "place-row-what", p.words),
+      );
+      b.onclick = () => this.onInspect(p.ref);
+      box.append(b);
+    }
+    this.body.replaceChildren(box);
   }
 
   /** Inside a lot (O3): its plan on its tiles, who is here and what stands here. Back goes to the lot's page. */
@@ -1089,7 +1163,7 @@ export class PlaceInspector {
       row.append(words);
       if (s.go) {
         const go = s.go,
-          k = el("button", "place-insp-go", go.lot !== null ? "📍" : "🎯");
+          k = captioned(el("button", "place-insp-go"), go.lot !== null ? "📍" : "🎯", "Go to");
         k.title = go.lot !== null ? "Go there" : `Go to ${x.name}`;
         k.setAttribute("aria-label", k.title);
         k.onclick = () => this.onGo(go);

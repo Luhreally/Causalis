@@ -4,6 +4,7 @@
 // dug at that level; and under the drawing, what is dug there, each with where the eye can go for it.
 import type { PlaceInspectLevels, VillagePlan } from "../bridge/index.ts";
 import { el } from "./why.ts";
+import { captioned } from "./place-hud.ts";
 
 const SVG = "http://www.w3.org/2000/svg";
 const W = 320,
@@ -36,8 +37,8 @@ export function levelsEl(
   const n = Math.max(0, Math.min(x.levels.length - 1, k)),
     level = x.levels[n]!,
     step = el("div", "place-levels-step"),
-    up = el("button", "place-levels-up", "▲"),
-    down = el("button", "place-levels-down", "▼"),
+    up = captioned(el("button", "place-levels-up"), "▲", "Up"),
+    down = captioned(el("button", "place-levels-down"), "▼", "Down"),
     label = el("span", "place-levels-label", `${n + 1} of ${x.levels.length} · ${level.name}`);
   up.disabled = n === 0;
   down.disabled = n === x.levels.length - 1;
@@ -122,7 +123,7 @@ export function levelsEl(
       row.append(el("span", "place-levels-icon", d.icon), el("span", "place-insp-fact", d.words));
       const at = d.works ? mine : null;
       if (d.lot !== null || at) {
-        const go = el("button", "place-insp-go", "📍");
+        const go = captioned(el("button", "place-insp-go"), "📍", "Go to");
         go.title = d.works ? "Go to its workings" : "Go there";
         go.setAttribute("aria-label", go.title);
         go.onclick = () => onGo(at ? { id: null, lot: null, at } : { id: null, lot: d.lot });

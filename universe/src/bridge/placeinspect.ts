@@ -698,6 +698,21 @@ export type PlaceInspectHelp = {
   readonly can: readonly string[];
 };
 
+/** The town's own pages listed (U3): each with its sign, its name, what it tells, and its ref. The same for every town. */
+export type PlaceInspectTown = {
+  readonly kind: "townpages";
+  readonly ref: string;
+  readonly name: string;
+  readonly icon: string;
+  readonly sub: string;
+  readonly pages: readonly {
+    readonly icon: string;
+    readonly name: string;
+    readonly words: string;
+    readonly ref: string;
+  }[];
+};
+
 /** A thing worth doing next (G3): what it is, what to do, and where to go for it: a page, the eye to a place, a sheet. */
 export type PlaceTip = {
   readonly icon: string;
@@ -798,6 +813,7 @@ export type PlaceInspect =
   | PlaceInspectWhy
   | PlaceInspectWhatNow
   | PlaceInspectHelp
+  | PlaceInspectTown
   | PlaceInspectCivic
   | PlaceInspectMaking
   | PlaceInspectBody

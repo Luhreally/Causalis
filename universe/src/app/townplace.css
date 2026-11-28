@@ -834,7 +834,8 @@ body.placing .page-window {
   left: var(--place-l);
   right: var(--place-r);
   bottom: calc(var(--place-b) + 62px);
-  height: 160px;
+  /* (A peek tall enough for what one of its people is at and the row of their tabs under it: U3.) */
+  height: 184px;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -852,9 +853,11 @@ body.placing .page-window {
 .place-insp[data-height="half"] {
   height: min(50vh, 470px);
 }
+/* (All of it, short of the top third of the screen: a quarter of the town and more stays in sight above it, U3. Never
+   lower than under the paces, nor over the alert column.) */
 .place-insp[data-height="full"] {
   height: auto;
-  top: calc(var(--place-top) + 116px);
+  top: max(calc(var(--place-top) + 116px), 34vh);
   right: calc(var(--place-r) + 58px);
 }
 .place-hud.insp-open.sheet-open .place-sheet {
@@ -881,14 +884,18 @@ body.placing .page-window {
   box-shadow: none;
   background: none;
   position: relative;
+  /* (Its words under its bar, U3: "▲ More", "▼ Less".) */
+  padding-top: 9px;
+  font-size: 12px;
+  color: var(--muted, #c8d4ff);
 }
 .place-hud .place-insp-handle::after {
   content: "";
   position: absolute;
   left: 50%;
-  top: 9px;
+  top: 5px;
   width: 44px;
-  height: 5px;
+  height: 4px;
   margin-left: -22px;
   border-radius: 3px;
   background: rgba(190, 205, 255, 0.6);
@@ -983,8 +990,9 @@ body.placing .page-window {
   padding: 0 8px 8px;
   -webkit-overflow-scrolling: touch;
 }
+/* (A peek scrolls as the other heights do, U3: held still, what lay past it could not be read on a phone.) */
 .place-insp[data-height="peek"] .place-insp-body {
-  overflow: hidden;
+  overflow-y: auto;
 }
 .place-insp-now {
   margin: 0 0 4px;
@@ -1093,13 +1101,33 @@ body.placing .page-window {
   gap: 4px;
   margin: 4px 0;
 }
-/* (Eight tabs: two rows of four, at every width: the inspector is never wider than 360 px docked, and a row of eight cut
-   their names short, "Mooc", "Heal", "Socia".) */
+/* (Eight tabs in one row on a phone, at the top of a person's page, U3: two rows put the second under the fold at half the
+   screen. Each a fingertip wide; a phone narrower than 430 px scrolls the row rather than cut a name.) */
+.place-hud .place-insp-tabs {
+  flex-wrap: nowrap;
+  gap: 3px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
 .place-hud .place-insp-tab {
-  flex: 1 1 22%;
+  flex: 1 0 auto;
   min-width: 44px;
-  padding: 0 4px;
+  padding: 0 2px;
+  font-size: 13px;
   white-space: nowrap;
+}
+/* (Docked on a desk, 360 px wide: two rows of four, where a row of eight cut their names short, "Mooc", "Heal".) */
+@media (min-width: 900px) {
+  .place-hud .place-insp-tabs {
+    flex-wrap: wrap;
+    gap: 4px;
+    overflow-x: visible;
+  }
+  .place-hud .place-insp-tab {
+    flex: 1 1 22%;
+    padding: 0 4px;
+    font-size: inherit;
+  }
 }
 .place-insp-facts {
   display: grid;
@@ -2439,4 +2467,68 @@ body.placing:has(.page-window:not([hidden])) .place-tag {
 }
 .place-hud .place-insp-rung.on {
   opacity: 1;
+}
+
+/* A key whose face is a sign, given its word under it (U3): a phone shows no title. The sign as the key had it, the word
+   small under it; the key a fingertip's size still, never squeezed narrower than its word. */
+.place-hud .place-capkey {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  gap: 0;
+  line-height: 1.1;
+}
+.place-hud .place-capkey[hidden] {
+  display: none;
+}
+.place-capkey-sign {
+  line-height: 1.1;
+}
+.place-capkey-words {
+  font-size: 10px;
+  font-weight: 400;
+  line-height: 1.15;
+  letter-spacing: 0;
+  white-space: nowrap;
+  opacity: 0.92;
+}
+.place-hud .place-insp-back .place-capkey-sign,
+.place-hud .place-insp-ahead .place-capkey-sign {
+  line-height: 0.9;
+}
+.place-hud .place-insp-key {
+  padding: 0 2px;
+}
+.place-hud .place-watch-why .place-capkey-sign {
+  font-size: 15px;
+  font-weight: 700;
+}
+.place-hud .place-watch-why,
+.place-hud .place-watch-stay,
+.place-hud .place-watch-next {
+  padding: 0 4px;
+}
+.place-hud .place-row-unpin .place-capkey-sign {
+  font-size: 13px;
+}
+/* (A sheet's head in one order, U3: ‹ where it has a back, its name, ?, ×.) */
+.place-hud .place-sheet-head .place-sheet-back {
+  margin-left: -10px;
+}
+.place-sheet-helpwords {
+  margin: 2px 0 6px;
+}
+/* The town's own pages listed (U3): a row each, a fingertip tall. */
+.place-hud .place-town-row {
+  min-height: 48px;
+  justify-content: center;
+}
+.place-hud .place-town-row .place-row-name {
+  font-weight: 600;
+}
+.place-hud .place-sheet-help:disabled {
+  opacity: 0.35;
+  cursor: default;
 }
