@@ -13,6 +13,7 @@ import type {
   PlaceInspectBelow,
   PlaceInspectBound,
   PlaceInspectFaith,
+  PlaceInspectBody,
   PlaceInspectCharacter,
   PlaceInspectDead,
   PlaceInspectFamily,
@@ -264,6 +265,7 @@ export class PlaceInspector {
     else if (x.kind === "faith") this.faith(x);
     else if (x.kind === "dead") this.dead(x);
     else if (x.kind === "character") this.character(x);
+    else if (x.kind === "body") this.bodyPage(x);
     else this.lot(x);
   }
 
@@ -347,7 +349,11 @@ export class PlaceInspector {
     character.setAttribute("aria-label", `${x.name}'s character and mind`);
     character.onclick = () => this.onInspect(x.characterRef);
     const links = el("div", "place-insp-links");
-    links.append(family, character);
+    // (Their body and what it is written in, R4.)
+    const bodyKey = el("button", "place-insp-bodykey", "Body ▸");
+    bodyKey.setAttribute("aria-label", `${x.name}'s body, what it is made of and written in`);
+    bodyKey.onclick = () => this.onInspect(x.bodyRef);
+    links.append(family, character, bodyKey);
     body.push(links);
     // (A hand's orders, by name: a trade, or let be.)
     if (this.orders && x.trade !== "child") {
@@ -820,6 +826,29 @@ export class PlaceInspector {
       this.facts(x.senses.map((s) => [s.name, s.words, null] as const)),
     );
     this.body.replaceChildren(...body);
+  }
+  /** One's body (R4): what it is made of, how it lives, and what it is written in. */
+  private bodyPage(x: PlaceInspectBody): void {
+    this.picture(x);
+    const title = `${x.icon} ${x.name}`;
+    if (this.title.textContent !== title) this.title.textContent = title;
+    if (this.sub.textContent !== x.sub) this.sub.textContent = x.sub;
+    const made = el("div", "place-insp-stuffs place-insp-madeof");
+    for (const m of x.madeOf) {
+      const share = el("span", "place-insp-stuff-kg", `${m.share}%`);
+      const what = el("span", "place-insp-stuff-name", `${m.what} · ${m.kg} kg`);
+      what.title = m.words;
+      made.append(share, what);
+    }
+    this.body.replaceChildren(
+      el("p", "place-insp-why", `${x.body}.`),
+      el("h3", "place-insp-sub", "What their body is made of (est.)"),
+      made,
+      el("h3", "place-insp-sub", "How it lives"),
+      this.facts(x.metabolism.map(([a, b]) => [a, b, null] as const)),
+      el("h3", "place-insp-sub", "What it is written in"),
+      this.facts(x.genome.map(([a, b]) => [a, b, null] as const)),
+    );
   }
   /** One of the town's dead (R1): what took them, their life in short, their kin and those they knew, their last memories. */
   private dead(x: PlaceInspectDead): void {

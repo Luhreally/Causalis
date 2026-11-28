@@ -1208,6 +1208,7 @@ h3.place-insp-sub {
 .place-hud .place-insp-order,
 .place-hud .place-insp-family,
 .place-hud .place-insp-character,
+.place-hud .place-insp-bodykey,
 .place-hud .place-insp-free {
   padding: 0 10px;
 }
@@ -1260,6 +1261,9 @@ h3.place-insp-sub {
   gap: 3px 8px;
   font-size: 12px;
   margin: 4px 0;
+}
+.place-hud .place-insp-madeof {
+  grid-template-columns: 3em minmax(0, 1fr);
 }
 .place-hud .place-insp-stuff-swatch {
   width: 12px;

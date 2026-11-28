@@ -561,6 +561,17 @@ for (const view of [
       await press(".place-insp-back", "‹ Back to them from their character");
       await until("them again", async () => (await kind()) === "person", 8000);
       check((await kind()) === "person", "Back from their character comes to them");
+      // Their body and what it is written in (R4), and Back.
+      await k('document.querySelector(".place-insp-bodykey")?.scrollIntoView({ block: "center" })');
+      await page.waitForTimeout(300);
+      await press(".place-insp-bodykey", "Body ▸, on a person's page");
+      await until("their body", async () => (await kind()) === "body", 8000);
+      await page.waitForTimeout(400);
+      say(`body: ${(await text(".place-insp")).slice(0, 300)}`);
+      await look("16d-body", "one's body and what it is written in");
+      await press(".place-insp-back", "‹ Back to them from their body");
+      await until("them again", async () => (await kind()) === "person", 8000);
+      check((await kind()) === "person", "Back from their body comes to them");
     }
     // A sheet opened under it: the inspector above it, peeked.
     await press('.place-tab[data-tab="people"]', "the People tab, the inspector open");

@@ -43,6 +43,7 @@ import {
   placeWorkRef,
   placeFamilyRef,
   placeCharacterRef,
+  placeBodyRef,
   placePersonRef,
   placedId,
   type MemberState,
@@ -65,6 +66,7 @@ import { placeLegends, placeWork, workName } from "./placelegends.ts";
 import { placeGate } from "./placevisitors.ts";
 import { placeDead, placeFamily, placeKin } from "./placefamily.ts";
 import { placeCharacter } from "./placecharacter.ts";
+import { placeBody } from "./placebody.ts";
 import { placeInventory } from "./placeinventory.ts";
 import { bondWords, placeBound } from "./placebound.ts";
 import { placeFaith } from "./placefaith.ts";
@@ -547,6 +549,7 @@ export function inspectPerson(world: World, place: Place, id: number): PlaceInsp
     page: me.ref,
     familyRef: placeFamilyRef(place.town, id),
     characterRef: placeCharacterRef(place.town, id),
+    bodyRef: placeBodyRef(place.town, id),
     kin: placeKin(world, place, i),
     name: me.name,
     portrait: {
@@ -1140,6 +1143,10 @@ export function placeInspect(world: World, town: string, ref: string): PlaceInsp
   if (ref.startsWith("plca:")) return placeGate(world, place);
   if (ref.startsWith("plcd:")) return placeBound(world, place);
   if (ref.startsWith("plcr:")) return placeFaith(world, place);
+  if (ref.startsWith("plcm:")) {
+    const id = Number(ref.slice(ref.lastIndexOf(":") + 1));
+    return Number.isInteger(id) ? placeBody(world, place, id) : null;
+  }
   if (ref.startsWith("plcc:")) {
     const id = Number(ref.slice(ref.lastIndexOf(":") + 1));
     return Number.isInteger(id) ? placeCharacter(world, place, id) : null;
