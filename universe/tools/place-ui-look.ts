@@ -587,6 +587,8 @@ for (const view of [
     if ((await shown(".place-insp-order")) > 0) {
       await press(".place-insp-order", "the inspector's Orders");
       await look("17-insp-orders", "a person's orders in the inspector");
+      // (Drafting by name among them, R9.)
+      check((await shown(".place-insp-draft .place-chip")) >= 2, "a draft among their orders");
       await press(".place-insp-order", "Orders, closed");
     } else say("the one inspected keeps no work: no orders to look at");
     // Their table, and what they take where they need it (P4): on their first screen.
@@ -1175,6 +1177,18 @@ for (const view of [
     await press(".place-insp-back", "‹ Back to the square's page from its works and orders");
     await until("the square's page from its works", async () => (await kind()) === "lot", 8000);
     check((await kind()) === "lot", "Back from its works and orders comes to the square's page");
+    // Its beasts and power (R9): from the square's page, and Back.
+    await k('document.querySelector(".place-insp-beasts")?.scrollIntoView({ block: "center" })');
+    await page.waitForTimeout(300);
+    await press(".place-insp-beasts", "Beasts and power ▸, on the square's page");
+    await until("its beasts and power", async () => (await kind()) === "beasts", 8000);
+    await page.waitForTimeout(400);
+    say(`beasts: ${(await text(".place-insp")).slice(0, 300)}`);
+    check((await shown(".place-insp-rung")) === 4, "the four rungs of what drives its works");
+    await look("20r-beasts", "the town's beasts and power");
+    await press(".place-insp-back", "‹ Back to the square's page from its beasts and power");
+    await until("the square's page from its beasts", async () => (await kind()) === "lot", 8000);
+    check((await kind()) === "lot", "Back from its beasts and power comes to the square's page");
     // One of its dead (R1): the Log's names lead to them; their page outlives them, and Back comes again.
     {
       await press('.place-tab[data-tab="log"]', "the log tab, for one of its dead");

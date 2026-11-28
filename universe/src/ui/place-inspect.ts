@@ -12,6 +12,7 @@ import type {
   PlaceInspect,
   PlaceInspectBelow,
   PlaceInspectLevels,
+  PlaceInspectBeasts,
   PlaceInspectBound,
   PlaceInspectFaith,
   PlaceInspectBody,
@@ -304,6 +305,7 @@ export class PlaceInspector {
     else if (x.kind === "civic") this.civic(x);
     else if (x.kind === "why") this.whyPage(x);
     else if (x.kind === "levels") this.levels(x);
+    else if (x.kind === "beasts") this.beasts(x);
     else if (x.kind === "help") this.help(x);
     else if (x.kind === "whatnow") this.whatNow(x);
     else this.lot(x);
@@ -423,6 +425,42 @@ export class PlaceInspector {
           row.append(b);
         }
       body.push(row);
+      // (Drafted by name, R9: under arms whatever the muster, standing where told: with the rest, at their home or their
+      // work; or stood down.)
+      if (this.ordering && x.age >= 0) {
+        const draft = el("div", "place-insp-orders place-insp-draft"),
+          at: [number, string][] = [
+            [-9, "⚔️ Draft"],
+            [x.home.lot, "⚔️ At their home"],
+            ...(x.work && x.work.lot >= 0
+              ? ([[x.work.lot, "⚔️ At their work"]] as [number, string][])
+              : []),
+          ];
+        for (const [lot, words] of at) {
+          const b = el("button", `place-chip${x.drafted === lot ? " on" : ""}`, words);
+          b.setAttribute(
+            "aria-label",
+            lot === -9
+              ? `Draft ${x.name}, to stand with those under arms`
+              : `Draft ${x.name}, to stand ${words.slice(3).toLowerCase()}`,
+          );
+          b.onclick = () => {
+            this.ordering = false;
+            this.onOrder("place.draft", { person: x.id, at: lot });
+          };
+          draft.append(b);
+        }
+        if (x.drafted !== null) {
+          const b = el("button", "place-chip place-insp-undraft", "Stand down");
+          b.setAttribute("aria-label", `Stand ${x.name} down`);
+          b.onclick = () => {
+            this.ordering = false;
+            this.onOrder("place.draft", { person: x.id, at: null });
+          };
+          draft.append(b);
+        }
+        body.push(draft);
+      }
     }
     // The tabs, and the one open.
     const tabs = el("div", "place-insp-tabs");
@@ -935,6 +973,70 @@ export class PlaceInspector {
     }
     this.body.replaceChildren(...body);
   }
+  /** A town's beasts and power (R9): its flock and the wild of its land off its plan; its keepers; what drives its works. */
+  private beasts(x: PlaceInspectBeasts): void {
+    this.picture(x);
+    const title = `${x.icon} ${x.name}`;
+    if (this.title.textContent !== title) this.title.textContent = title;
+    if (this.sub.textContent !== x.sub) this.sub.textContent = x.sub;
+    const fauna = this.plan()?.fauna,
+      body: HTMLElement[] = [el("h3", "place-insp-sub", "Its flock")];
+    body.push(
+      el(
+        "p",
+        "place-insp-why",
+        fauna?.flock
+          ? `${fauna.flock.size} head of ${fauna.flock.name}${fauna.flock.wool ? ", kept for their wool and their meat" : ""}, kept by ${fauna.flock.herders} of it${fauna.raided ? "; its land's hunters raid them" : ""}.`
+          : "It keeps no flock.",
+      ),
+    );
+    if (fauna?.wild.length) {
+      body.push(el("p", "place-insp-label", "Wild in its land, that could be kept"));
+      body.push(
+        this.facts(
+          fauna.wild
+            .slice(0, 6)
+            .map(
+              (w) =>
+                [
+                  w.name,
+                  `${w.niche}; ${Math.round(w.stock * 100)}% of what its land first held`,
+                  w.ref,
+                ] as const,
+            ),
+        ),
+      );
+    }
+    body.push(el("h3", "place-insp-sub", "Its keepers, by how well trained"));
+    if (x.keepers.length)
+      body.push(
+        this.facts(
+          x.keepers.map(
+            (k) =>
+              [
+                k.name,
+                `${k.words} · ${k.hours.toLocaleString("en-US")} h at the herds`,
+                k.ref,
+              ] as const,
+          ),
+        ),
+      );
+    else body.push(el("p", "place-insp-why", "None of it keeps beasts."));
+    if (x.more) body.push(el("p", "place-insp-why", `And ${x.more} more.`));
+    if (x.carry.length) body.push(el("p", "place-insp-why", `${x.carry.join("; ")}.`));
+    body.push(el("h3", "place-insp-sub", "What drives its works"));
+    const list = el("div", "place-insp-power");
+    for (const r of x.power) {
+      const row = el("div", `place-insp-rung${r.on ? " on" : ""}`);
+      row.append(
+        el("span", "place-insp-label", `${r.on ? "●" : "○"} ${r.rung}`),
+        el("span", "place-insp-fact", r.words),
+      );
+      list.append(row);
+    }
+    body.push(list);
+    this.body.replaceChildren(...body);
+  }
   /** The town's ground, level by level (R8): stepped up and down, each drawn from above and told. */
   private levels(x: PlaceInspectLevels): void {
     this.picture(x);
@@ -1427,6 +1529,14 @@ export class PlaceInspector {
       );
       civic.onclick = () => this.onInspect(x.ref.replace(/^plcl:(.*):\d+$/, "plcv:$1"));
       body.push(civic);
+      // (Its beasts and power, R9.)
+      const beasts = el("button", "place-insp-order place-insp-beasts", "Beasts and power ▸");
+      beasts.setAttribute(
+        "aria-label",
+        "Who keeps the town's flock, what pulls for it, and what drives its works",
+      );
+      beasts.onclick = () => this.onInspect(x.ref.replace(/^plcl:(.*):\d+$/, "plcx:$1"));
+      body.push(beasts);
     }
     if (x.zoneWords) body.push(el("p", "place-insp-why", x.zoneWords));
     // (The guard's post by your order, O7: those standing to arms keep it, watching the homes within a cry of it.)

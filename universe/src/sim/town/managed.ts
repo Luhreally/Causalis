@@ -120,6 +120,11 @@ export type Managed = {
    * on to another of its land's towns.
    */
   gate?: 0;
+  /**
+   * Those of it drafted by name (R9): two numbers each, who (their number) and where they are to stand (a lot, the
+   * walls' site -4, or -9: wherever those standing to arms stand by its order). Absent: none.
+   */
+  drafted?: number[];
   /** Those of it freed from bondage by your word (P6): their numbers. Absent: none. */
   freed?: number[];
 };
@@ -226,6 +231,7 @@ export class ManagedStore implements StateStore {
         ...(m.post !== undefined ? { post: m.post } : {}),
         ...(m.gate !== undefined ? { gate: m.gate } : {}),
         ...(m.freed ? { freed: [...m.freed] } : {}),
+        ...(m.drafted ? { drafted: [...m.drafted] } : {}),
       });
   }
   private add(m: Managed): Managed {
@@ -775,6 +781,34 @@ export function installManaged(world: World, ctx: () => PopulationContext): Mana
       if (!s) return;
       const m = store.of(s.ref, s.cell, t);
       if (!(m.freed ??= []).includes(a.person)) m.freed.push(a.person);
+    },
+  });
+  // One of it drafted by name (R9), to stand at a lot, the walls (-4) or with those standing to arms (-9); or stood down
+  // (null).
+  world.defineCommand({
+    type: "place.draft",
+    validate: (args) => {
+      const a = args as { person?: unknown; at?: unknown };
+      return (
+        held(args) ??
+        (!whole(a.person, 1, 0xfffffffe)
+          ? "person must be one of its people's numbers"
+          : a.at === null || a.at === -4 || a.at === -9 || whole(a.at, 0, 1e9)
+            ? null
+            : "at must be one of its lots, the walls (-4), with the rest under arms (-9), or null to stand them down")
+      );
+    },
+    apply: (command, t) => {
+      const a = command.args as { town: Ref; person: number; at: number | null },
+        s = ctx().settlements.get(a.town);
+      if (!s) return;
+      const m = store.of(s.ref, s.cell, t),
+        next: number[] = [];
+      for (let k = 0; k < (m.drafted?.length ?? 0); k += 2)
+        if (m.drafted![k] !== a.person) next.push(m.drafted![k]!, m.drafted![k + 1]!);
+      if (a.at !== null) next.push(a.person, a.at);
+      if (next.length) m.drafted = next;
+      else delete m.drafted;
     },
   });
   // Its gate shut to newcomers (P2), or opened (null).

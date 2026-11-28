@@ -499,7 +499,7 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
     stopInspect = null;
     if (
       ref &&
-      !/^(plc|plcl|plci|plcg|plcb|plcw|plcy|plca|plcf|plcc|plcm|plcs|plcv|plch|plcn|plcq|plcz|plcd|plcr|folk|person):/.test(
+      !/^(plc|plcl|plci|plcg|plcb|plcw|plcy|plca|plcf|plcc|plcm|plcs|plcv|plch|plcn|plcq|plcz|plcx|plcd|plcr|folk|person):/.test(
         ref,
       )
     ) {
@@ -536,7 +536,7 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
       return;
     }
     const id = placedId(ref);
-    if (/^plc[ligbwyafcmsvhnqzdr]:/.test(ref)) choose(null);
+    if (/^plc[ligbwyafcmsvhnqzxdr]:/.test(ref)) choose(null);
     else if (id !== null) choose(id);
     // (A sheet open under it is kept where the inspector is only peeked; a taller one takes the sheet's place.)
     if (inspector.height !== "peek" && hud.tab) hud.open(null);

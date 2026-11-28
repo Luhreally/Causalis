@@ -2332,3 +2332,19 @@ body.placing:has(.page-window:not([hidden])) .place-tag {
   column-gap: 6px;
   min-height: 44px;
 }
+
+/* A town's beasts and power (R9): the rungs of what drives its works, those its land knows lit. */
+.place-hud .place-insp-power {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.place-hud .place-insp-rung {
+  display: grid;
+  grid-template-columns: 8em 1fr;
+  column-gap: 6px;
+  opacity: 0.6;
+}
+.place-hud .place-insp-rung.on {
+  opacity: 1;
+}

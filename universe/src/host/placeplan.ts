@@ -252,6 +252,15 @@ export function placeDayRows(world: World, place: Place): [string, string][] {
   ];
 }
 
+/** Where one of a town drafted by name (R9) was told to stand: a lot, or the walls (null: not drafted, or with the rest). */
+export function draftedAt(world: World, place: Place, id: number): number | null {
+  const d = managedOf(world)?.get(place.town)?.drafted;
+  if (!d) return null;
+  for (let k = 0; k + 1 < d.length; k += 2)
+    if (d[k] === id) return d[k + 1] === -9 ? null : d[k + 1]!;
+  return null;
+}
+
 /** Why one of a place's people does what they do, in words, with the numbers that decided it. */
 export function whyWords(world: World, place: Place, i: number): string {
   const p = place.people,
@@ -321,6 +330,9 @@ export function whyWords(world: World, place: Place, i: number): string {
     case WHY.fire:
       return `A fire in the town: turned out to fight it at ${lotWords(place, p.to[i]!)}, until it is out or hunger takes them off`;
     case WHY.arms:
+      // (Drafted by name, R9: where they were told to stand.)
+      if (draftedAt(world, place, p.id[i]!) !== null)
+        return `Drafted by your word: standing at ${lotWords(place, draftedAt(world, place, p.id[i]!)!)}${going}, in the hours their work would have had`;
       return `Standing to arms ${(() => {
         // (At the post your order gives, O7: watching the homes within a cry of it.)
         const post = managedOf(world)?.get(place.town)?.post;

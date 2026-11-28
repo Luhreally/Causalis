@@ -4283,6 +4283,13 @@ export function armsWanted(hands: number): number {
   return Math.round(ASK_PULL.glad * hands);
 }
 
+/** Those of a town drafted by name (R9), and where each is to stand (-9: with those standing to arms). */
+export function draftedOf(list: readonly number[]): Map<number, number> {
+  const m = new Map<number, number>();
+  for (let k = 0; k + 1 < list.length; k += 2) m.set(list[k]!, list[k + 1]!);
+  return m;
+}
+
 /**
  * Those standing to arms by its order (sim/town/managed.ts place.respond, muster) made up: so many of its grown at the
  * trades an order can move (armsWanted), well and held by no other order, taken as a site's crew is; all stood down
@@ -4290,11 +4297,28 @@ export function armsWanted(hands: number): number {
  */
 function armsCrew(world: World, place: Place, f: Frame): void {
   const p = place.people,
-    on = !!managedOf(world)?.get(place.town)?.held.includes("muster"),
+    orders = managedOf(world)?.get(place.town),
+    on = !!orders?.held.includes("muster"),
+    // (Those drafted by name, R9: under arms whatever the muster, and never stood down by it.)
+    drafted = orders?.drafted?.length ? draftedOf(orders.drafted) : null,
     have: number[] = [],
     free: number[] = [];
   let hands = 0;
   for (let i = 0; i < p.n; i++) {
+    if (drafted?.has(p.id[i]!)) {
+      if (
+        p.bound[i] !== BOUND_ARMS &&
+        (!p.bound[i] || p.bound[i] === BOUND_SITE) &&
+        !p.ill[i] &&
+        ageOf(p, i, place.t) >= f.life.adulthood
+      ) {
+        if (p.carry[i]! > 0) place.bldgs.stock[p.carryGood[i]!]! += p.carry[i]!;
+        p.carry[i] = 0;
+        p.bound[i] = BOUND_ARMS;
+        note(place, HAP.mustered, p.id[i]!);
+      }
+      continue;
+    }
     if (p.bound[i] === BOUND_ARMS) have.push(i);
     if (!CREW_FROM.includes(occOf(p, i)) || ageOf(p, i, place.t) < f.life.adulthood) continue;
     hands++;
@@ -6948,6 +6972,8 @@ function tickCx(world: World, place: Place, f: Frame) {
     zoned = orders?.zones?.length ? zonesOf(place, orders.zones) : null,
     // (Where those standing to arms stand by its order: O7. Undefined: the square.)
     post = orders?.post,
+    // (Those drafted by name and where each stands, R9.)
+    drafted = orders?.drafted?.length ? draftedOf(orders.drafted) : null,
     // A fire being fought, where: by the grown who live near it, or by all of them where a watch is kept by order.
     fireLot = place.fire.length && t < place.fire[1]! ? place.fire[0]! : null,
     // A burial being held: where, and whose household stands by.
@@ -7267,6 +7293,7 @@ function tickCx(world: World, place: Place, f: Frame) {
     visitor,
     zoned,
     post,
+    drafted,
     lets,
     drink: placeDrink(world, place),
     bonds: placeBonds(world, place),
@@ -8056,7 +8083,9 @@ function turnOf(cx: TickCx, i: number, k: number, wk: number): void {
   }
   // Standing to arms by order: at their post (O7), else in the square, in the hours their work would have had.
   if (cBound[i] === BOUND_ARMS) {
-    const post = cx.post ?? AT.square;
+    // (One drafted by name stands where they were told, R9; else with the rest.)
+    const told = cx.drafted?.get(cId[i]!),
+      post = told === undefined || told === -9 ? (cx.post ?? AT.square) : told;
     cAct[i] = ACT.guard;
     cWhy[i] = WHY.arms;
     if (cAt[i] !== post) go(place, i, post, world);
@@ -9823,8 +9852,9 @@ export function placePrio(world: World, place: Place, id: number): number[] | nu
 function applyOrders(world: World, place: Place, f: Frame): void {
   const orders = managedOf(world)?.get(place.town),
     work = orders?.work ?? null,
+    // (Those drafted by name, R9, only where any are: a town given none keeps the key it had.)
     key = orders
-      ? `${work ? work.join(",") : ""}|${orders.assigned.join(",")}|${orders.housed.join(",")}|${orders.held.join(",")}|${orders.shelter}${orders.prio ? `|${orders.prio.join(",")}` : ""}`
+      ? `${work ? work.join(",") : ""}|${orders.assigned.join(",")}|${orders.housed.join(",")}|${orders.held.join(",")}|${orders.shelter}${orders.prio ? `|${orders.prio.join(",")}` : ""}${orders.drafted?.length ? `|d${orders.drafted.join(",")}` : ""}`
       : "";
   if (key === place.ordered) return;
   // (A building opened, or shut again, to those without a home: they go to it, or from it, at once.)
