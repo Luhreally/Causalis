@@ -181,7 +181,7 @@ export function storyPage(
                 !w
                   ? "Lead a band first: its land's first village is what comes of it."
                   : w.sows
-                    ? `Its land sows, and its first village comes in its turn: ${w.waiting.toLocaleString()} lands that sow wait for their first village the world over. Wake and let the years run.`
+                    ? `Its land sows, and its first village comes in its turn: ${w.waiting <= 1 ? "it is the one land in the world that sows and waits for its first village" : `${w.waiting.toLocaleString()} lands that sow wait for their first village the world over`}. Wake and let the years run.`
                     : "Its land does not sow yet. Lead its band to see wild grain come up, and teach the land to sow.",
               ),
             ]),

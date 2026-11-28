@@ -282,7 +282,9 @@ export class ShipRide {
       rows: [string, string][] = [
         [
           "The year",
-          `${v.year}: ${left} ${left === 1 ? "year" : "years"} to go of ${v.arrives - v.departed}`,
+          left
+            ? `${v.year}: ${left} ${left === 1 ? "year" : "years"} to go of ${v.arrives - v.departed}`
+            : `${v.year}: coming down, ${v.arrives - v.departed} years on`,
         ],
         ["Aboard", `${n(v.people)} people, ${n(v.young)} of them children`],
         [

@@ -234,7 +234,8 @@ export function starsOf(world: World, at: unknown): LineStars | null {
           asked: !!decision?.factors.some((f) => f.name === ASKED_REASON),
           words: to ? starText(to) : `a star ${s.distance.toFixed(1)} light-years out`,
           arrives: s.arrives,
-          arrived: !!s.arrived || year >= s.arrives,
+          // (Come down when the voyage rule sets it down, its colony founded: not before, by the calendar alone.)
+          arrived: !!s.arrived,
         };
       })
       .filter((s) => s.land),
@@ -382,7 +383,7 @@ export function voyageOf(world: World, args: unknown): LineVoyage | null {
     year,
     departed: s.departed,
     arrives: s.arrives,
-    arrived: !!s.arrived || year >= s.arrives,
+    arrived: !!s.arrived,
     star: s.star,
     words: to ? starText(to) : `a star ${s.distance.toFixed(1)} light-years out`,
     distance: Math.round(s.distance * 10) / 10,

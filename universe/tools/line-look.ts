@@ -45,7 +45,12 @@ const server = await preview({
   browser = await chromium.launch({
     args: ["--enable-gpu", "--ignore-gpu-blocklist", "--use-angle=d3d11"],
   });
-const READ = hudRead([], 1);
+const READ = hudRead([], 1),
+  /** The keys back to the line and into a colony's town, among its page's actions (whether there to press). */
+  BACK_KEY =
+    "[...document.querySelectorAll('.page-panel button')].some((b) => /Back to your line/.test(b.textContent ?? '') && b.offsetParent)",
+  TOWN_KEY =
+    "[...document.querySelectorAll('.page-panel button')].some((b) => /Enter its town/.test(b.textContent ?? '') && b.offsetParent)";
 type State = {
   on: boolean;
   my: number;
@@ -375,7 +380,60 @@ for (const view of [
           `settled: ${await k<string>("document.querySelector('.line-payoff')?.textContent?.slice(0, 300) ?? ''")}`,
         );
         await look("s3b-settled", "a world settled: its payoff");
-        await pressText(".line-payoff button", /Its stars/, "Its stars");
+        // (Its colony watched: the god game's own film of it coming down, ending in its town; its town entered in town
+        // mode from the key over it; then back to the line, at its stars, as it was left.)
+        await pressText(".line-payoff button", /Watch it come down/, "🛬 Watch it come down");
+        await until(
+          "its colony's film plays",
+          () => k<boolean>("!!globalThis.causalis.colonyFilm?.playing"),
+          60000,
+        );
+        await page.waitForTimeout(6000);
+        await look("s3d-colony-film", "its colony coming down, the god game's film");
+        await k("globalThis.causalis.colonyFilm.skip()");
+        await until(
+          "the film over, the keys back over its town",
+          async () =>
+            !(await k<boolean>("!!globalThis.causalis.colonyFilm?.playing")) &&
+            (await k<boolean>(BACK_KEY)),
+          120000,
+        );
+        await page.waitForTimeout(1500);
+        await look(
+          "s3e-colony-town",
+          "its colony's town, its page with the keys to enter it or go back",
+        );
+        if (await k<boolean>(TOWN_KEY)) {
+          await pressText(".page-panel button", /Enter its town/, "🏘️ Enter its town");
+          await until(
+            "its town entered, in town mode",
+            () => k<boolean>("document.body.classList.contains('placing')"),
+            120000,
+          );
+          await page.waitForTimeout(2500);
+          await look("s3f-town-mode", "its colony's town, in town mode");
+          await k("globalThis.causalis.place.toggle()");
+          await until(
+            "town mode left",
+            () => k<boolean>("!document.body.classList.contains('placing')"),
+            60000,
+          );
+          await page.waitForTimeout(1000);
+        } else say("NOT its town offered to enter (no town of its own)");
+        // (Town mode left: its town's page opened again, its keys among its actions.)
+        await until(
+          "its town's page again, the key back to the line on it",
+          () => k<boolean>(BACK_KEY),
+          30000,
+        );
+        await pressText(".page-panel button", /Back to your line/, "🧬 Back to your line");
+        await until(
+          "back in the line, at its stars",
+          async () =>
+            (await k<boolean>("!!globalThis.causalis.lineMode.state().on")) &&
+            (await k<string | null>("globalThis.causalis.lineMode.state().page")) === "story:stars",
+          120000,
+        );
         await page.waitForTimeout(800);
         check(
           await k<boolean>("!!document.querySelector('.line-star-dot.settled')"),
