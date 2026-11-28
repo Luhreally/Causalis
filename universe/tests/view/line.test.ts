@@ -311,3 +311,29 @@ test("a cell with a toxin is let go by the hunter that grips it", () => {
   assert.equal(h.ended, "");
   assert.match(h.told?.words ?? "", /toxin/);
 });
+
+test("a cell with a nucleus calls a mate when it is full; the mate swims to it, and their young mix the two", () => {
+  const s = newDrop(block(), [true, false, false, false]),
+    t = { ...first, nucleus: true },
+    h = holdDrop(s, t, swimSpeed(t, WATER), { x: 90, y: 60 }),
+    c = heldCell(s, h)!;
+  c.energy = 2.1 * worth(t.size);
+  h.act = "divide";
+  stepHeld(s, h);
+  assert.ok(h.mate !== null && !h.dividing, "a mate called, not divided alone");
+  for (let i = 0; i < 30 * 12 && !h.dividing; i++) stepHeld(s, h);
+  assert.ok(h.dividing && h.mated, "the mate came, and the young are to be chosen");
+  const gates = cellGates(WATER, RUNGS, 3700, 0.9),
+    alone = daughtersOf(t, "w", 1, 0, gates, WATER),
+    both = daughtersOf(t, "w", 1, 0, gates, WATER, true);
+  assert.equal(both.length, alone.length + 1);
+  assert.ok(both.at(-1)!.mate && both.at(-1)!.part?.gained);
+  assert.deepEqual(both.slice(0, alone.length), alone, "the young of a mating are those of a division, and one more");
+  // (Without a nucleus, the same press divides it alone.)
+  const s2 = newDrop(block(), [true, false, false, false]),
+    h2 = holdDrop(s2, first, swimSpeed(first, WATER), { x: 90, y: 60 });
+  heldCell(s2, h2)!.energy = 2.1 * worth(first.size);
+  h2.act = "divide";
+  stepHeld(s2, h2);
+  assert.ok(h2.dividing && !h2.mated);
+});

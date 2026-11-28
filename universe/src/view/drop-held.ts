@@ -100,6 +100,9 @@ export type DropHand = {
   gained: number;
   /** Divide was pressed with enough gathered: its daughters wait to be chosen. */
   dividing: boolean;
+  /** The mate called (a cell's id, coming to it), and whether the division now waiting was a mating. */
+  mate: number | null;
+  mated: boolean;
   /** Seconds it has been held in a hunter's grip (ENGULF: taken), and how fresh its last hurt is (1 … 0). */
   caught: number;
   hurt: number;
@@ -160,6 +163,8 @@ export function holdDrop(
     steered: 0,
     gained: 0,
     dividing: false,
+    mate: null,
+    mated: false,
     caught: 0,
     hurt: 0,
     ended: "",
@@ -280,8 +285,14 @@ export function stepHeld(s: DropState, h: DropHand): void {
   const act = h.act;
   h.act = null;
   if (act === "divide") {
-    if (c.energy >= 2 * w) h.dividing = true;
-    else told(`Not yet: ${Math.round((c.energy / (2 * w)) * 100)}% of the way to dividing`, false);
+    if (c.energy < 2 * w)
+      told(`Not yet: ${Math.round(Math.max(0, (c.energy - w) / w) * 100)}% of the way`, false);
+    else if (h.traits.nucleus) {
+      if (h.mate === null) {
+        h.mate = callMate(s, c, h);
+        told("You call for a mate of your kind: it is coming");
+      }
+    } else h.dividing = true;
   } else if (act === "dart") {
     if (c.energy > w * 0.05) {
       h.dart = DART * fx.dart;
@@ -347,6 +358,27 @@ export function stepHeld(s: DropState, h: DropHand): void {
   for (const m of c.meals) m.age += dt;
   c.meals = c.meals.filter((m) => m.age < 8);
   // —— A hunting cell that reaches it takes it in; one that senses it closes on it, as it would on any cell it could take.
+  // (The mate called comes to it, and as they touch the young are made.)
+  if (h.mate !== null) {
+    const m = s.cells.find((x) => x.id === h.mate);
+    if (!m) h.mate = null;
+    else {
+      const dx = gap(m.x, c.x, FIELD_W),
+        dy = gapY(s, m.y, c.y),
+        d = Math.hypot(dx, dy) || 1;
+      if (d < (c.size + m.size) / 2 + 1) {
+        h.mate = null;
+        h.mated = true;
+        h.dividing = true;
+        m.heading += Math.PI;
+      } else {
+        const step = Math.min(d, Math.max(m.speed, h.speed) * 1.2 * dt);
+        m.heading = Math.atan2(dy, dx);
+        m.x = wrap(m.x + (dx / d) * step, FIELD_W);
+        m.y = placeY(s, m.y + (dy / d) * step);
+      }
+    }
+  }
   let gripped = false;
   h.hurt = Math.max(0, h.hurt - dt * 1.5);
   for (const o of s.cells) {
@@ -435,6 +467,28 @@ export function divideHeld(
   next.engulfed = h.engulfed;
   next.steered = h.steered;
   return next;
+}
+
+/**
+ * A mate called by the cell held: the nearest of its own line about it, else the nearest of its kind of a size with it,
+ * else one of its kind come from further off (at the edge of what it sees). Its id.
+ */
+function callMate(s: DropState, c: Cell, h: DropHand): number {
+  let best: Cell | null = null,
+    bd = Infinity;
+  for (const o of s.cells) {
+    if (o === c || o.kind !== c.kind || o.dividing > 0 || o.size > c.size * 1.6 || o.size < c.size * 0.6) continue;
+    const d = Math.hypot(gap(c.x, o.x, FIELD_W), gapY(s, c.y, o.y)) - (o.marked ? 40 : 0);
+    if (d < 70 && d < bd) [best, bd] = [o, d];
+  }
+  if (best) return best.id;
+  const o = born(s, c.kind, null, wrap(c.x + 40, FIELD_W), c.y);
+  o.size = c.size;
+  o.speed = h.speed;
+  o.energy = worth(c.size);
+  o.marked = true;
+  s.cells.push(o);
+  return o.id;
 }
 
 /**

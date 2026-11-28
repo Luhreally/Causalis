@@ -99,7 +99,7 @@ type SagaData = {
   stage: "cell" | "body";
   my: number;
   readonly first: Traits;
-  gens: { pick: number; my: number; took: Daughter["took"]; reasons: readonly string[] }[];
+  gens: { pick: number; my: number; took: Daughter["took"]; reasons: readonly string[]; mated?: boolean }[];
   /** Past the cells: the body the line lives in now, and its generations (the founder first). */
   body?: LineBody | null;
   bodies?: { my: number; name: string; way: string; mass: number; reasons: readonly string[]; died: string | null }[];
@@ -384,14 +384,18 @@ export function installLine(d: LineDeps): LineFlow {
   const openPicker = () => {
     if (!traits || !facts || !saga) return;
     const gen = saga.gens.length,
-      ds = daughtersOf(traits, saga.digest, sagaId, gen, gatesNow(), facts);
+      mated = !!hand?.mated,
+      ds = daughtersOf(traits, saga.digest, sagaId, gen, gatesNow(), facts, mated);
     choosing = ds;
     const box = el("div", "line-card line-pick"),
       head = el("div", "line-card-head"),
       q = el("button", "line-help", "?");
     q.setAttribute("aria-label", "How daughters differ");
     q.onclick = () => openPage("help:daughters");
-    head.append(el("h3", "", `Your cell divides in ${ds.length === 3 ? "three" : "two"}`), q);
+    head.append(
+      el("h3", "", mated ? `You and your mate: ${ds.length} young` : `Your cell divides in ${ds.length === 3 ? "three" : "two"}`),
+      q,
+    );
     const list = el("div", "line-pick-list");
     ds.forEach((dt, i) => {
       const b = el("button", `line-daughter${dt.took ? " took" : ""}`),
@@ -408,7 +412,11 @@ export function installLine(d: LineDeps): LineFlow {
         fill = kindColour ? `rgb(${kindColour.map((v) => Math.round(v * 255)).join(",")})` : undefined;
       b.append(
         cellPicture(t, dt.part?.gained ? dt.part.id : null, fill),
-        el("strong", "", `${dt.took ? "✨ " : dt.part?.gained ? "🧩 " : ""}Daughter ${i + 1}${forebears}`),
+        el(
+          "strong",
+          "",
+          `${dt.mate ? "💞 " : dt.took ? "✨ " : dt.part?.gained ? "🧩 " : ""}Daughter ${i + 1}${dt.mate ? " (her mate's part)" : forebears}`,
+        ),
         el("span", "line-daughter-nums", `${t.size.toFixed(1)} µm across · ${speedOf(t).toFixed(1)} µm a second`),
         ...dt.reasons.map((r) => el("span", "line-daughter-why", r)),
       );
@@ -426,7 +434,13 @@ export function installLine(d: LineDeps): LineFlow {
     if (!choosing || !drop || !hand || !saga) return;
     const ds = choosing,
       chosen = ds[Math.max(0, Math.min(ds.length - 1, i))]!;
-    saga.gens.push({ pick: ds.indexOf(chosen), my, took: chosen.took, reasons: chosen.reasons });
+    saga.gens.push({
+      pick: ds.indexOf(chosen),
+      my,
+      took: chosen.took,
+      reasons: chosen.reasons,
+      ...(hand.mated ? { mated: true } : {}),
+    });
     const next = divideHeld(
       drop,
       hand,
@@ -1097,6 +1111,7 @@ export function installLine(d: LineDeps): LineFlow {
       prey: c && traits!.nucleus ? (drop!.kinds[preyOf(drop!, c)?.kind ?? -1]?.name ?? null) : null,
       basking: !!hand?.bask,
       light: c && drop ? lightAt(drop, c.y) : 0,
+      mating: hand?.mate != null,
     });
   };
 
@@ -1128,7 +1143,12 @@ export function installLine(d: LineDeps): LineFlow {
       if (full >= 1 && !wasFull) {
         hud.pop();
         noises.play("pop");
-        if (guide.first("full")) hud.say("Your meter is full: divide! Press ➗ (Space)");
+        if (guide.first(traits.nucleus ? "full-mate" : "full"))
+          hud.say(
+            traits.nucleus
+              ? "Your meter is full: call a mate! Press 💞 (Space), and your young will mix the two of you"
+              : "Your meter is full: divide! Press ➗ (Space)",
+          );
       }
       wasFull = full >= 1;
     }
@@ -1138,7 +1158,7 @@ export function installLine(d: LineDeps): LineFlow {
     if (c) {
       const near = threatOf(drop, c);
       if (near !== null && near < 34 * partEffects(traits).sight) {
-        if (guide.first("danger")) hud.say("Something bigger is near: flee! Dart away with ⚡ (E)", false);
+        if (guide.first("danger")) hud.say("Something bigger is near: flee! Dart away with 💨 (E)", false);
         noises.play("danger");
       }
       if (traits.nucleus && preyOf(drop, c) && guide.first("prey"))
@@ -1422,7 +1442,7 @@ const HELP: Readonly<Record<string, readonly [string, readonly string[]]>> = {
   "help:acts": [
     "What your cell can do",
     [
-      "Divide (Space): when the bar is full. Your cell splits, and you choose the daughter to go on in.",
+      "Divide (Space): when the bar is full. Your cell splits, and you choose the daughter to go on in. Once your line has a nucleus this is Mate: you call one of your kind, it swims to you, and your young mix the two of you (one of them carries a part of your mate's).",
       "Dart (E): a burst of speed for a moment, to get clear of a hunter or reach food. It costs five times as much as swimming.",
       "Take in (F): only once your line has a nucleus. Swallow a cell under half your size that you touch.",
       "Bask (R): only once your line has taken in a light-eater. Hold still and live by light, brighter near the surface.",

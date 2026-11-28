@@ -285,6 +285,8 @@ export type Daughter = {
   readonly traits: Traits;
   /** The part it gained or lost against its mother (null: none). */
   readonly part: { readonly id: PartId; readonly gained: boolean } | null;
+  /** Whether it carries a part of its mother's mate (a cell with a nucleus may mate before it divides). */
+  readonly mate?: boolean;
   /** What it took up that its mother had not (null: none). */
   readonly took: "light" | "nucleus" | "together" | null;
   /** How it differs, each with what it does: from what the drop and the world are. */
@@ -316,6 +318,7 @@ export function daughtersOf(
   gen: number,
   gates: Gates,
   liquid: Pick<LineFacts, "liquid" | "pigment">,
+  mated = false,
 ): Daughter[] {
   const way = wayOf(mother),
     out: Daughter[] = [];
@@ -376,6 +379,29 @@ export function daughtersOf(
       reasons: part ? [partWords(part.id, t.parts?.[part.id] ?? 0, part.gained), ...why.filter((w) => w !== "Much as its mother was")] : why,
     });
   }
+  if (mated) {
+    // (Her mother's mate's own part, mixed into her: one of those its world allows that her mother has not, by its draws.)
+    const u = (k: number) => lineDraw(digest, saga, gen, 3, k),
+      allowed = partsAllowed(liquid).filter((p) => (mother.parts?.[p] ?? 0) < 2),
+      id = allowed[Math.floor(u(9) * allowed.length)];
+    if (id) {
+      const t: Traits = {
+        ...mother,
+        size: Math.round(mother.size * Math.exp(DRIFT[way] * normalOf(u, 0)) * 100) / 100,
+        parts: { ...mother.parts, [id]: (mother.parts?.[id] ?? 0) + 1 },
+      };
+      out.push({
+        traits: t,
+        took: null,
+        part: { id, gained: true },
+        mate: true,
+        reasons: [
+          `From her mother's mate: ${partWords(id, t.parts?.[id] ?? 1, true).replace(/^It grew |^Its /, "")}`,
+          ...reasonsOf(mother, { ...t, parts: mother.parts }, null, liquid).filter((w) => w !== "Much as its mother was"),
+        ],
+      });
+    }
+  }
   return out;
 }
 
@@ -431,13 +457,13 @@ export function lineAt(
   first: Traits,
   digest: string,
   saga: number,
-  gens: readonly { readonly pick: number; readonly my: number }[],
+  gens: readonly { readonly pick: number; readonly my: number; readonly mated?: boolean }[],
   gatesAt: (my: number) => Gates,
   liquid: Pick<LineFacts, "liquid" | "pigment">,
 ): Traits[] {
   const out = [first];
   gens.forEach((g, i) => {
-    const d = daughtersOf(out[i]!, digest, saga, i, gatesAt(g.my), liquid);
+    const d = daughtersOf(out[i]!, digest, saga, i, gatesAt(g.my), liquid, !!g.mated);
     out.push(d[Math.max(0, Math.min(d.length - 1, g.pick))]!.traits);
   });
   return out;
@@ -463,20 +489,27 @@ export function cellOffers(o: {
   readonly prey: string | null;
   readonly basking: boolean;
   readonly light: number;
+  /** A mate has been called and is coming. */
+  readonly mating?: boolean;
 }): CellOffer[] {
   const w = worth(o.t.size),
-    full = Math.min(1, o.energy / (2 * w)),
-    { t, gates } = o;
+    full = Math.max(0, Math.min(1, (o.energy - w) / w)),
+    { t, gates } = o,
+    // (A cell with a nucleus can mate: it calls one of its kind, and its young mix the two.)
+    mate = t.nucleus && !o.mating;
   return [
     {
       act: "divide",
-      icon: "➗",
-      label: "Divide",
-      can: full >= 1,
-      words:
-        full >= 1
-          ? "You have gathered enough: divide, and choose a daughter"
-          : `Eat to grow: ${Math.round(full * 100)}% of the way to dividing`,
+      icon: mate ? "💞" : "➗",
+      label: mate ? "Mate" : o.mating ? "Waiting" : "Divide",
+      can: full >= 1 && !o.mating,
+      words: o.mating
+        ? "Your mate is coming to you"
+        : full >= 1
+          ? mate
+            ? "Call a mate of your kind: your young will mix the two of you"
+            : "You have gathered enough: divide, and choose a daughter"
+          : `Eat to grow: ${Math.round(full * 100)}% of the way to ${mate ? "mating" : "dividing"}`,
     },
     {
       act: "dart",
