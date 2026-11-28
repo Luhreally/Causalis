@@ -6,6 +6,11 @@
 // is hashed as if the store were not there (dormant), so no world anyone has moves for it.
 import type { Hasher, Ref, StateStore, World } from "../../kernel/index.ts";
 
+/** The reason a ship's sailing gives where it sailed for the star asked. */
+export const ASKED_REASON = "the star it was asked to sail for";
+/** The reason it gives where another took the star asked first, and it sailed where it would have. */
+export const ASKED_TAKEN = "the star it was asked to sail for taken by another first";
+
 export type SpaceAsk = { readonly realm: Ref; readonly star: Ref; readonly t: number };
 
 export class SpaceAskStore implements StateStore {

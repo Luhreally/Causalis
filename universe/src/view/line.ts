@@ -665,17 +665,35 @@ export function cellOffers(o: {
 
 // —— The guide: its lessons, and what to do now —————————————————————————————————————————————————————————————————
 
-export type LessonId = "steer" | "eat" | "divide" | "choose" | "page" | "wake";
+export type LessonId =
+  | "steer"
+  | "eat"
+  | "divide"
+  | "choose"
+  | "page"
+  | "wake"
+  | "move"
+  | "young"
+  | "now"
+  | "hunt"
+  | "seed"
+  | "sow"
+  | "story";
+
+/** The stage a lesson is of: the guide shows the next of the stage the line is in. */
+export type LessonStage = "cell" | "body" | "band";
 
 /** The guide's lessons in their order: each ticks itself off as it is done. `show` is what its Show me points at. */
 export const LESSONS: readonly {
   readonly id: LessonId;
+  readonly stage: LessonStage;
   readonly title: string;
   readonly words: string;
   readonly show: string;
 }[] = [
   {
     id: "steer",
+    stage: "cell",
     title: "Steer your cell",
     words:
       "Put a thumb down on the left half of the screen and drag the way to go (on a keyboard: W A S D or the arrows). Your cell goes as far as you push and stops the moment you let go: at its size the water holds it like honey.",
@@ -683,6 +701,7 @@ export const LESSONS: readonly {
   },
   {
     id: "eat",
+    stage: "cell",
     title: "Eat what floats",
     words:
       "The pale specks are bits of food. Swim into them to take them in: each one brings you nearer to dividing (the bar under your name).",
@@ -690,6 +709,7 @@ export const LESSONS: readonly {
   },
   {
     id: "divide",
+    stage: "cell",
     title: "Divide when you are full",
     words:
       "When the bar is full, press Divide. Your cell splits, and its daughters are each a little unlike it.",
@@ -697,6 +717,7 @@ export const LESSONS: readonly {
   },
   {
     id: "choose",
+    stage: "cell",
     title: "Choose a daughter",
     words:
       "You live on in the daughter you choose. Each card says how it differs and what that does here: larger cells are safer but cost more, faster ones reach food sooner but spend more.",
@@ -704,6 +725,7 @@ export const LESSONS: readonly {
   },
   {
     id: "page",
+    stage: "cell",
     title: "Read your cell's page",
     words:
       "Press your cell's name at the top to read what it is: its size, how its world's liquid feels to it, its line so far. Back and Forward walk the pages.",
@@ -711,10 +733,67 @@ export const LESSONS: readonly {
   },
   {
     id: "wake",
+    stage: "cell",
     title: "Wake to your world",
     words:
       "Press Wake when you are done. Your world comes back exactly as you left it: nothing played here changes it. Your line is kept, to go on with later.",
     show: ".line-wake",
+  },
+  {
+    id: "move",
+    stage: "body",
+    title: "Live as your body",
+    words:
+      "Drag on the left half of the screen to go. Eat what your way eats, and keep clear of what would eat you: the bar under its name fills as it is fed and grown.",
+    show: ".line-strip",
+  },
+  {
+    id: "young",
+    stage: "body",
+    title: "Have young, and choose one",
+    words:
+      "When the bar is full, court one of its kind with the key at the right. Choose among your young: your line goes on in the one you choose, an age later.",
+    show: ".line-act-0",
+  },
+  {
+    id: "now",
+    stage: "body",
+    title: "Bring your line to now",
+    words:
+      "Each young you choose takes your line an age on. When it comes to now, your world's people live in bands: lead one.",
+    show: ".line-name",
+  },
+  {
+    id: "hunt",
+    stage: "band",
+    title: "Feed your band",
+    words:
+      "Drag to look about: the ring on the ground is where you look. Put it on a beast and press 🏹 Hunt. A band well fed has children; at night, 🌙 Sleep passes the night.",
+    show: ".line-act-0",
+  },
+  {
+    id: "seed",
+    stage: "band",
+    title: "See the seed come up",
+    words:
+      "Press 🌾 Seed: the gatherers bring the grass's seed, and drop some by the fire. Walk on with 🚶, and come back to the old camp four days or more later: it may have come up.",
+    show: ".line-act-2",
+  },
+  {
+    id: "sow",
+    stage: "band",
+    title: "Teach your land to sow",
+    words:
+      "Where the grain came up, press 🌱 Sow. Your land sows, and its first village comes in its turn.",
+    show: ".line-act-3",
+  },
+  {
+    id: "story",
+    stage: "band",
+    title: "Read your line's story",
+    words:
+      "Press your band's name at the top: your line's story, from its cell to its village, its realm and its stars.",
+    show: ".line-name",
   },
 ];
 

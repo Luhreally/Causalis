@@ -57,7 +57,7 @@ import { nationsOf } from "./nation-store.ts";
 import { clusterOf, StarSiteStore, starSitesOf, type SiteLane, type StarSite } from "./stars.ts";
 import { farTaken, filledYear, lastFarSailed, sailFar } from "./filled.ts";
 import { LANE_EVENTS, LANE_ROW, laneDraw, laneLawOf, laneRoute, lanesOf } from "./lanes.ts";
-import { askedStar, spendAsk } from "./asks.ts";
+import { ASKED_REASON, ASKED_TAKEN, askedStar, spendAsk } from "./asks.ts";
 
 export { clusterOf };
 
@@ -254,6 +254,14 @@ export function voyageTarget(
   return best ? { drive, target: best } : null;
 }
 
+/** Whether another's ship or colony has a star already. */
+export function starTaken(world: World, star: string): boolean {
+  return (
+    (starSitesOf(world)?.all() ?? []).some(([, s]) => s.star === star) ||
+    farTaken(world).includes(star)
+  );
+}
+
 /** A star a realm's ship could sail for now, with the best world there its people could live on (Live a Line's space). */
 export type ReachStar = {
   readonly star: GalaxyStar;
@@ -373,17 +381,20 @@ export function voyageYear(ctx: PopulationContext, t: SimTime): void {
     if (!(world.rng.real(VOYAGE, p.seat, t, 0) < FLIGHT_PACE * drive)) continue;
     const choice = voyageTarget(ctx, p, machines);
     if (!choice) continue;
-    // (Where it sails for the star it was asked for: said, and the ask spent.)
-    const heeded = askedStar(world, p.ref) === choice.target.star.ref;
-    if (heeded)
+    // (Where it sails for the star it was asked for: said, and the ask spent. Where another took that star first, the ship
+    // sails where the realm would have sent it: said too, and the ask spent, for it can never be heeded now.)
+    const asked = askedStar(world, p.ref),
+      heeded = asked === choice.target.star.ref,
+      lost = !!asked && !heeded && starTaken(world, asked);
+    if (heeded || lost)
       reasons.push({
-        name: "the star it was asked to sail for",
+        name: heeded ? ASKED_REASON : ASKED_TAKEN,
         value: 1,
         contribution: 0,
         source: null,
       });
     sail(ctx, p, origin, choice.drive, choice.target, reasons, machines, year);
-    if (heeded) spendAsk(world, p.ref);
+    if (heeded || lost) spendAsk(world, p.ref);
     // One ship a year in all the world.
     return;
   }

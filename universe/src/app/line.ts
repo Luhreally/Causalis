@@ -219,7 +219,9 @@ export function installLine(d: LineDeps, Loading: typeof PlaceLoading): LineFlow
     /** What came of the band's land in the world, as last asked (S7). */
     storyWorld: LineStory | null = null,
     /** The realm holding the band's land at the stars, as last asked (S8). */
-    storyStars: LineStars | null = null;
+    storyStars: LineStars | null = null,
+    /** A land the look tools point the story at (none: the band's, or the cradle). */
+    storyCell: number | undefined;
   const noises = new LineSound(d.sound);
   /** How everything stood as the mode was entered, to be put back as it was on waking. */
   let was: {
@@ -363,7 +365,7 @@ export function installLine(d: LineDeps, Loading: typeof PlaceLoading): LineFlow
     from: string | null,
   ): Promise<void> => {
     if (!plan?.drop || !facts) return;
-    guide.away = false;
+    guide.stage = "cell";
     const span = cellSpan(rungs);
     if (resume) {
       saga = resume.data;
@@ -631,7 +633,10 @@ export function installLine(d: LineDeps, Loading: typeof PlaceLoading): LineFlow
           [
             "Your world's peoples all live in villages and towns now: no band of them camps anywhere to lead. Lead one in a world that is young, from its beginning.",
           ],
-          [key("☀️ Wake", () => void flow.wake())],
+          [
+            key("☀️ Wake", () => void flow.wake(), true),
+            key("📜 Your world's story", () => void openStory("story:village")),
+          ],
           "help:band",
         ),
       );
@@ -649,15 +654,16 @@ export function installLine(d: LineDeps, Loading: typeof PlaceLoading): LineFlow
     bandSeen = band.band!.people.length;
     ended = false;
     told = "";
-    guide.away = true;
+    guide.stage = "band";
     document.body.dataset.scale = "ground";
     // (The words left from another stage put by: the band's own, from now.)
-    hud.say(`You lead the ${info.people}, camped in ${info.land}`, true);
+    const where = info.land.replace(/^The /, "the ");
+    hud.say(`You lead the ${info.people}, camped in ${where}`, true);
     layer(
       card(
         `The ${info.people}: a band of ${info.size}`,
         [
-          `You lead a band of your world's people, camped in ${info.land}. They live their own day: out gathering and hunting, home by dusk, asleep by night.`,
+          `You lead a band of your world's people, camped in ${where}. They live their own day: out gathering and hunting, home by dusk, asleep by night.`,
           "Look about with the stick: the ring is where you look. Send the hunters after a beast there, or walk the band on to that ground. Fed well, the band has children.",
           land.sows
             ? "Your land's people sow already: their villages will come."
@@ -684,6 +690,7 @@ export function installLine(d: LineDeps, Loading: typeof PlaceLoading): LineFlow
         const r = band.act(press);
         if (r === "sow") sowCard();
         else {
+          if (r.good && /hunters go/.test(r.words)) guide.did("hunt");
           hud.say(r.words, r.good);
           if (r.good) noises.play("pop");
         }
@@ -703,6 +710,7 @@ export function installLine(d: LineDeps, Loading: typeof PlaceLoading): LineFlow
       }
       if (/come up/.test(last)) {
         noises.play("pop");
+        guide.did("seed");
         if (guide.first("sprouted"))
           hud.say("The seed came up! Press 🌱 Sow to teach your land to sow", true);
       }
@@ -775,6 +783,7 @@ export function installLine(d: LineDeps, Loading: typeof PlaceLoading): LineFlow
       .catch((e: unknown) => ({ ok: false, error: String(e) }));
     const ok = (r as { ok?: boolean }).ok !== false;
     taught = ok;
+    if (ok) guide.did("sow");
     layer(
       card(
         ok ? "Your land sows" : "Your land could not be taught",
@@ -786,8 +795,7 @@ export function installLine(d: LineDeps, Loading: typeof PlaceLoading): LineFlow
           : [`${(r as { error?: string }).error ?? "It was turned back."}`],
         [
           key("Stay with the band", () => layer(null), true),
-          key("📜 Your line's story", () => void openStory("story:village"), true),
-          key("☀️ Wake", () => void flow.wake()),
+          key("📜 Your line's story", () => void openStory("story:village")),
         ],
         "help:band",
       ),
@@ -814,14 +822,14 @@ export function installLine(d: LineDeps, Loading: typeof PlaceLoading): LineFlow
   };
   /** The story opened at a page, what came of the band's land asked of the world first. */
   const openStory = async (at: string = STORY[0]) => {
-    const cell = saga?.tribe?.cell ?? bandLand?.cell;
-    [storyWorld, storyStars] =
-      cell === undefined
-        ? [null, null]
-        : await Promise.all([
-            d.client.query<LineStory | null>({ type: "line.story", args: { cell } }),
-            d.client.query<LineStars | null>({ type: "line.stars", args: { cell } }),
-          ]);
+    guide.did("story");
+    const cell = storyCell ?? saga?.tribe?.cell ?? bandLand?.cell;
+    // (No band led: the story follows the world's people from their cradle, and says so.)
+    const args = cell === undefined ? {} : { cell };
+    [storyWorld, storyStars] = await Promise.all([
+      d.client.query<LineStory | null>({ type: "line.story", args }),
+      d.client.query<LineStars | null>({ type: "line.stars", args }),
+    ]);
     layer(null);
     openPage(at);
   };
@@ -864,8 +872,6 @@ export function installLine(d: LineDeps, Loading: typeof PlaceLoading): LineFlow
         ],
         [
           key("Stay in the drop", () => layer(null), true),
-          key("☀️ Wake", () => void flow.wake(), true),
-          key("⛺ Lead a band", () => void startBand(), true),
           key("🐚 Found a body", () => void openFounders()),
         ],
         "help:stage",
@@ -968,7 +974,7 @@ export function installLine(d: LineDeps, Loading: typeof PlaceLoading): LineFlow
   /** The line's body put into its age's living world (its shallows, while it lives in the water). */
   const startBody = () => {
     if (!saga?.body || !plan) return;
-    guide.away = true;
+    guide.stage = "body";
     const t0 = performance.now(),
       b = saga.body,
       sea = isSea(b.way) || (ashoreAt() > 0 && my > ashoreAt()),
@@ -1067,16 +1073,21 @@ export function installLine(d: LineDeps, Loading: typeof PlaceLoading): LineFlow
       died: bred.died?.name ?? null,
     });
     void keepSaga();
+    guide.did("young");
     if (my <= 0) {
       leaveBody();
+      guide.did("now");
       layer(
         card(
           "Your line has come to now",
           [
-            `Your line lives on in your world today: ${next.name}, ${massText(next.genome.mass)}.`,
-            "Your line is kept.",
+            `Your line lives on in your world today: ${next.name}, ${massText(next.genome.mass)}. Your line is kept.`,
+            "Your world's people live in bands now. Lead one: feed it, see the seed it drops come up, and teach its land to sow. What comes of its land is your line's story.",
           ],
-          [key("☀️ Wake", () => void flow.wake())],
+          [
+            key("✨ Make it so", () => void makeItSo(), true),
+            key("⛺ Lead a band", () => void startBand()),
+          ],
           "help:body",
         ),
       );
@@ -1125,7 +1136,10 @@ export function installLine(d: LineDeps, Loading: typeof PlaceLoading): LineFlow
       const press = hud.takePressed()[0];
       if (press !== undefined) beast.pressed = press;
       beast.stick = hud.stick();
-      if (beast.stick.x || beast.stick.y) moved = true;
+      if (beast.stick.x || beast.stick.y) {
+        moved = true;
+        guide.did("move");
+      }
     } else hud.takePressed();
     beast.frame(dt, paused);
     if (!paused) {
@@ -1998,7 +2012,10 @@ export function installLine(d: LineDeps, Loading: typeof PlaceLoading): LineFlow
       bandMorning: () => band?.toMorning() ?? false,
       sow: () => sowCard(),
       teach: () => teach(),
-      story: (at?: string) => openStory(at),
+      story: (at?: string, cell?: number) => {
+        if (cell !== undefined) storyCell = cell;
+        return openStory(at);
+      },
       storyWorld: () => storyWorld,
       storyStars: () => storyStars,
     };

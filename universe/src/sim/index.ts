@@ -1033,7 +1033,8 @@ export {
   worldsOf,
   type ReachStar,
 } from "./space/voyages.ts";
-export { askedStar } from "./space/asks.ts";
+export { ASKED_REASON, askedStar } from "./space/asks.ts";
+export { starTaken } from "./space/voyages.ts";
 export {
   CONTACT_EVENTS,
   ContactStore,

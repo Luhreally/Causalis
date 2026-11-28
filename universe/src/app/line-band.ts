@@ -26,6 +26,8 @@ import {
 const M = 0.1,
   /** Band seconds a second: a band's day (view/band.ts BAND_DAY, two minutes) in forty seconds. */
   PACE = 3,
+  /** How much quicker a night slept through passes. */
+  SLEEP = 8,
   /** The eye: so far behind the spot it looks at and so high (scene units), how fast the stick moves it (m/s). */
   BACK = 2.6,
   UP = 4.4,
@@ -34,7 +36,12 @@ const M = 0.1,
   LOOK_REACH = 140,
   HUNT_NEAR = 16;
 
+/** The band's day: when its hunters go out (7:30 to 18:00). */
+const isDay = (hour: number) => hour >= 7.5 && hour < 18;
+
 export class LineBand {
+  /** A night being slept through (🌙 Sleep): its pace hurried until morning. */
+  sleeping = false;
   readonly scene: MeadowScene;
   private readonly folk: BandLayer;
   private readonly marks: LineBandMarks;
@@ -106,8 +113,10 @@ export class LineBand {
     if (!b || !m || !this.led) return;
     if (!paused) {
       const t0 = performance.now();
-      this.owed += Math.min(0.1, dt) * PACE;
-      this.time += Math.min(0.1, dt) * PACE;
+      // (A night slept through: hurried on to the morning, seen passing.)
+      const pace = this.sleeping ? PACE * SLEEP : PACE;
+      this.owed += Math.min(0.1, dt) * pace;
+      this.time += Math.min(0.1, dt) * pace;
       let n = 0;
       while (this.owed >= MEADOW_STEP && n < 12) {
         stepMeadow(m);
@@ -116,6 +125,7 @@ export class LineBand {
         n++;
       }
       if (n === 12) this.owed = 0;
+      if (this.sleeping && isDay(bandHour(b))) this.sleeping = false;
       this.stepMs = performance.now() - t0;
       this.news.push(...b.news);
       b.news.length = 0;
@@ -189,23 +199,30 @@ export class LineBand {
       beast = q === null ? null : m.beasts.find((x) => x.id === q),
       name = beast ? m.kinds[beast.kind]!.name : null,
       hour = bandHour(b),
-      day = hour >= 7.5 && hour < 18;
+      day = isDay(hour);
     return [
-      {
-        icon: "🏹",
-        label: "Hunt",
-        can: q !== null && day && !b.going && !b.kill,
-        words:
-          q === null
-            ? "Look at a beast the hunters could take (the ring on it), then send them"
-            : !day
-              ? "The hunters go out by day"
-              : b.going
-                ? "The band is walking on"
-                : b.kill
-                  ? "A kill is being cut up"
-                  : `Send the hunters after the ${name}`,
-      },
+      !day
+        ? {
+            icon: "🌙",
+            label: "Sleep",
+            can: !this.sleeping,
+            words: this.sleeping ? "The night passing" : "Let the night pass, on to the morning",
+          }
+        : {
+            icon: "🏹",
+            label: "Hunt",
+            can: q !== null && day && !b.going && !b.kill,
+            words:
+              q === null
+                ? "Look at a beast the hunters could take (the ring on it), then send them"
+                : !day
+                  ? "The hunters go out by day"
+                  : b.going
+                    ? "The band is walking on"
+                    : b.kill
+                      ? "A kill is being cut up"
+                      : `Send the hunters after the ${name}`,
+          },
       {
         icon: "🚶",
         label: "Walk on",
@@ -244,6 +261,10 @@ export class LineBand {
     const b = this.band!,
       m = this.meadow!,
       l = this.led!;
+    if (i === 0 && !isDay(bandHour(b))) {
+      this.sleeping = true;
+      return { words: "The band sleeps; the night passes", good: true };
+    }
     if (i === 0) {
       const q = this.quarry();
       if (q === null) return { words: "No beast they could take where you look", good: false };
