@@ -23,7 +23,17 @@ const TISSUE_WHY: Readonly<Record<Tissue, string>> = {
   vessel: "it bled hard; weak while it mends",
   organ: "it hurts deep, and mends slowly",
 };
-import { lifeOf, managedOf, mixOf, homePlanet, kindBody } from "../sim/index.ts";
+import {
+  CIVIC_LOTS,
+  lifeOf,
+  managedOf,
+  mixOf,
+  homePlanet,
+  kindBody,
+  sitedProblem,
+  townsOf,
+} from "../sim/index.ts";
+import { townOffers } from "./inspect/asks.ts";
 import {
   PLACE_AT,
   placeItemRef,
@@ -948,6 +958,7 @@ export function inspectLot(world: World, place: Place, lot: number): PlaceInspec
       : null,
     ...lotZone(world, place, lot),
     ...lotPost(world, place, lot),
+    raiseHere: raiseHere(world, place, lot),
     ground: (() => {
       const g = groundReading(world, place.cell);
       return g ? `${g.stats[0]?.value ?? "Its soil"} over ${g.line.replace(/^Ground: /, "")}` : "";
@@ -970,6 +981,31 @@ export function inspectLot(world: World, place: Place, lot: number): PlaceInspec
   };
 }
 
+/** What a town could be asked to raise, read once a day a place (P1): its Build sheet's own list. */
+const OFFERS = new WeakMap<Place, { day: number; o: ReturnType<typeof townOffers> }>();
+/** What the town could be asked to raise on a lot (P1): each on the lots it is of, in step with its size, where it fits. */
+function raiseHere(world: World, place: Place, lot: number): PlaceInspectLot["raiseHere"] {
+  const f = townsOf(world).get(place.town);
+  if (lot < 0 || !f) return [];
+  const day = Math.floor(place.t / DAY);
+  let was = OFFERS.get(place);
+  if (!was || was.day !== day) OFFERS.set(place, (was = { day, o: townOffers(world, place.town) }));
+  const year = Math.floor(place.t / (365 * DAY)),
+    out: PlaceInspectLot["raiseHere"][number][] = [];
+  for (const r of was.o?.raises ?? []) {
+    const lots = (CIVIC_LOTS as Readonly<Record<string, number>>)[r.what];
+    if (lots === undefined || r.kind !== "raise") continue;
+    const at = Math.floor(lot / lots) * lots;
+    if (sitedProblem(f, r.what, at, year)) continue;
+    let clears = 0;
+    for (let h = 0; h < place.houses.n; h++) {
+      const home = place.houses.home[h]!;
+      if (home >= at && home < at + lots && place.houses.members[h]! > 0) clears++;
+    }
+    out.push({ what: r.what, icon: r.icon, name: r.name, note: r.note, at, lots, clears });
+  }
+  return out;
+}
 /** The homes within a cry of a guard's post (O7), counted once a day a post: as the watch at it would hear them. */
 const WATCH_COUNT = new WeakMap<Place, { key: string; n: number }>();
 /** A lot as the guard's post (O7): whether it is one, whether it may be, and what comes of it, said. */

@@ -796,6 +796,7 @@ export {
   firstProblem,
   handsFor,
   raiseProblem,
+  sitedProblem,
   type Ask,
   type AskAnswer,
   type AskFirst,

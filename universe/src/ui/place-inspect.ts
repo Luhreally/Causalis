@@ -728,6 +728,28 @@ export class PlaceInspector {
       body.push(row);
     }
     if (x.postWords) body.push(el("p", "place-insp-why", x.postWords));
+    // (What the town could be asked to raise here, P1: on the lots this one is of; the homes it would clear said.)
+    if (x.raiseHere.length && this.orders) {
+      const box = el("div", "place-insp-people place-insp-raise");
+      for (const r of x.raiseHere) {
+        const row = el("div", "place-line place-build-row"),
+          words = el("span", "place-line-words"),
+          go = el("button", "place-order place-insp-raise-key", "Raise here");
+        words.append(
+          el("span", "place-row-name", `${r.icon} ${r.name}`),
+          el(
+            "span",
+            "place-row-what",
+            `${r.note}${r.lots > 1 ? ` · on ${r.lots} lots from this one's block` : ""}${r.clears ? ` · clears the ${r.clears === 1 ? "home of 1 household" : `homes of ${r.clears} households`} on them` : ""}`,
+          ),
+        );
+        go.setAttribute("aria-label", `Ask the town to raise ${r.name} here`);
+        go.onclick = () => this.onOrder("town.ask", { kind: "raise", what: r.what, at: r.at });
+        row.append(words, go);
+        box.append(row);
+      }
+      body.push(el("p", "place-insp-label", "Raise here"), box);
+    }
     if (x.ground) body.push(el("p", "place-insp-why", `Ground: ${x.ground}`));
     if (x.stock.length) {
       const table = el("table", "place-insp-stock"),

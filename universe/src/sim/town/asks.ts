@@ -154,7 +154,32 @@ export type AskArgs = {
   kind: "raise" | "first";
   what: string;
   by?: { realm: Ref; ruler: string };
+  /** Where it is to stand, on lots its asker chose (P1: the first of them; absent: where the town sites it). */
+  at?: number;
 };
+
+/**
+ * Why a building of a town cannot stand on the lots asked for it (P1; null: it can): its first lot in step with its size,
+ * all its lots in one block of the town's plan (as a town sites its own), on the town as it is laid, and none of them under
+ * another building standing or going up. Homes there are cleared for it, as for any building raised among them.
+ */
+export function sitedProblem(f: Fabric, what: string, at: unknown, year: number): string | null {
+  const lots = (CIVIC_LOTS as Readonly<Record<string, number>>)[what];
+  if (lots === undefined) return "only a building of the town's can be sited by hand";
+  if (typeof at !== "number" || !Number.isInteger(at) || at < 0)
+    return "at must be one of its lots";
+  if (at % lots !== 0) return `a building of ${lots} lots stands from a lot in step with its size`;
+  if (Math.floor(at / 8) !== Math.floor((at + lots - 1) / 8))
+    return "its lots must be of one block";
+  if (at + lots > f.next) return "its lots must be of the town as it is laid";
+  if (
+    f.civics.some(
+      (c) => (c.fell === null || c.fell > year) && c.at < at + lots && at < c.at + c.lots,
+    )
+  )
+    return "another building stands there";
+  return null;
+}
 
 /** A share of its hands a priority takes, by how it was taken up. */
 export const ASK_PULL: Readonly<Record<AskAnswer, number>> = {
@@ -665,10 +690,17 @@ export function installAsks(world: World, ctx: () => PopulationContext): AskStor
         return typeof a.what === "string" && isFirst(a.what)
           ? firstProblem(c, s, a.what)
           : "a town can put first only what a town can";
-      if (a.kind === "raise")
-        return typeof a.what === "string" && (a.what === "walls" || isCivic(a.what))
-          ? raiseProblem(c, s, a.what as AskRaise)
-          : "a town can raise only what a town can";
+      if (a.kind === "raise") {
+        if (typeof a.what !== "string" || !(a.what === "walls" || isCivic(a.what)))
+          return "a town can raise only what a town can";
+        // (On lots its asker chose, P1: where they can take it.)
+        if (a.at !== undefined) {
+          const f = townsOf(world).get(s.ref);
+          const bad = f ? sitedProblem(f, a.what, a.at, yearOfMoment(world.now)) : "it has no plan";
+          if (bad) return bad;
+        }
+        return raiseProblem(c, s, a.what as AskRaise);
+      }
       return "ask it to put something first, or to raise something";
     },
     apply: (command, t) => {
@@ -713,7 +745,7 @@ export function installAsks(world: World, ctx: () => PopulationContext): AskStor
           what = a.what as AskRaise,
           year = yearOfMoment(t),
           builder = new TownBuilder(c, year),
-          site = what === "walls" ? builder.askedWalls(f) : builder.askedCivic(f, what),
+          site = what === "walls" ? builder.askedWalls(f) : builder.askedCivic(f, what, a.at),
           hands = handsFor(s.population, what, site.lots, f.next, read.answer);
         work = {
           at: site.at,

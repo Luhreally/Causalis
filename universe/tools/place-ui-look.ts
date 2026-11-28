@@ -842,6 +842,23 @@ for (const view of [
     await press(".place-insp-back", "‹ Back to the square's page from its legends");
     await until("the square's page once more", async () => (await kind()) === "lot", 8000);
     check((await kind()) === "lot", "Back from its legends comes to the square's page");
+    // Raised by hand (P1): a home's lot page offers what the town could raise on its lots; asked there, it is offered no more.
+    if (kept !== null) {
+      await k(`globalThis.causalis.place.inspect(${JSON.stringify(`plcl:${town.ref}:${kept + 3}`)})`);
+      await until("a home's lot page", async () => (await kind()) === "lot", 8000);
+      await k('globalThis.causalis.place.inspectHeight("half")');
+      await page.waitForTimeout(600);
+      const offered = await shown(".place-insp-raise-key");
+      if (offered > 0) {
+        say(`raise here: ${(await text(".place-insp-raise")).slice(0, 300)}`);
+        await k('document.querySelector(".place-insp-raise-key")?.scrollIntoView({ block: "center" })');
+        await page.waitForTimeout(300);
+        await look("20j-raise-here", "what could be raised on a home's lots");
+        await press(".place-insp-raise-key", "Raise here, on a home's lot page");
+        await until("the asking taken", async () => (await shown(".place-insp-raise-key")) < offered, 8000);
+        check((await shown(".place-insp-raise-key")) < offered, "raised there: no longer offered on its lots");
+      } else say("nothing the town could raise on this home's lots");
+    }
     await k('globalThis.causalis.place.inspectHeight("peek")');
   }
   // Where a good is made, with its bills (N10), and the market, with what it takes; at half height.
