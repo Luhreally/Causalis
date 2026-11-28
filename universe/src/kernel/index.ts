@@ -111,10 +111,12 @@ export {
   rulesetId,
   saveWorld,
   saveSteps,
+  heldCopy,
   verifyByReplay,
   type LoadOptions,
   type Loaded,
   type SaveDocument,
+  type SaveStep,
   type StoreChunk,
 } from "./save.ts";
 export {

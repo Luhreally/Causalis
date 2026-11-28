@@ -522,8 +522,21 @@ export class EventLog {
     };
   }
 
-  /** The summaries as a save keeps them: each type's counts by place and decade, by column. */
+  /** The summaries as a save keeps them, as of the folded counts' last change: they change only as events are forgotten. */
+  private columns: { readonly at: number; readonly columns: FoldedColumns } | null = null;
+
+  /**
+   * The summaries as a save keeps them: each type's counts by place and decade, by column. (Read again only once the counts
+   * have changed: a quarter of a second of every save of first light at 1,300, where they change once a decade.)
+   */
   private foldedColumns(): FoldedColumns {
+    if (this.columns?.at === this.folded.changes) return this.columns.columns;
+    const columns = this.readColumns();
+    this.columns = { at: this.folded.changes, columns };
+    return columns;
+  }
+
+  private readColumns(): FoldedColumns {
     const byType = new Map<string, { place: string[]; decade: number[]; n: number[] }>();
     for (const s of this.summaries())
       for (const [type, n] of Object.entries(s.counts)) {

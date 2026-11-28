@@ -11,6 +11,9 @@ import {
   rulesetId,
   SAVE_FORMAT,
   saveWorld,
+  saveSteps,
+  heldCopy,
+  packList,
   seedFromText,
   verifyByReplay,
   Hasher,
@@ -273,4 +276,61 @@ test("a packed store damaged is refused by its hash", () => {
     (e: unknown) =>
       e instanceof SaveError && /history.events is corrupt/.test((e as Error).message),
   );
+});
+
+test("a save reads the world first and makes the rest from its copy: the world going on after does not change it", () => {
+  const w = makePopulationWorld(seedFromText("held saves"));
+  w.runTo(6 * YEAR);
+  const ruleset = rulesetId(w, VERSION),
+    at = JSON.stringify(saveWorld(w, ruleset)),
+    steps = saveSteps(w, ruleset);
+  let r = steps.next();
+  while (!r.done && r.value !== "held") r = steps.next();
+  assert.equal(r.value, "held");
+  // (On five years, then the rest of the save made.)
+  w.runTo(11 * YEAR);
+  for (r = steps.next(); !r.done;) r = steps.next();
+  assert.equal(JSON.stringify(r.value), at, "the world as it was when the save held");
+  assert.notEqual(JSON.stringify(saveWorld(w, ruleset)), at, "the world went on");
+});
+
+test("a held copy is read by JSON and by packing as what it was copied from", () => {
+  class Kept {
+    readonly a = 1;
+    readonly b = [2, 3];
+  }
+  const live = { n: [1, 2, 3] },
+    holed: number[] = [1];
+  holed[2] = 3;
+  const odd: Record<string, unknown> = {
+    plain: { x: 1, y: "two", z: [1, 2, { w: null }] },
+    undef: { x: undefined, y: 2 },
+    neg: [-0, 0, NaN, Infinity],
+    holed,
+    dated: new Date(0),
+    kept: new Kept(),
+    typed: new Uint8Array([1, 2]),
+    map: new Map([[1, 2]]),
+    fn: { f: () => 1, g: 2 },
+    own: { toJSON: () => live.n },
+    bare: Object.assign(Object.create(null) as object, { q: 1 }),
+    many: Array.from({ length: 80 }, (_, j) => j % 7),
+    rows: Array.from({ length: 80 }, (_, j) => ({ id: `ev:${j}:1`, t: j * 3, s: [j, -j] })),
+  };
+  Object.defineProperty(odd, "__proto__", {
+    value: { p: 1 },
+    enumerable: true,
+    writable: true,
+    configurable: true,
+  });
+  const copy = heldCopy(odd),
+    json = JSON.stringify(odd),
+    packed = JSON.stringify(packList([odd]));
+  // (What was copied changes after: the copy does not.)
+  live.n.push(4);
+  (odd.plain as { x: number }).x = 9;
+  (odd.rows as { t: number }[])[0]!.t = -1;
+  assert.equal(JSON.stringify(copy), json);
+  assert.equal(JSON.stringify(packList([copy])), packed);
+  assert.equal(1 in (heldCopy(holed) as unknown[]), false, "a hole is kept a hole");
 });
