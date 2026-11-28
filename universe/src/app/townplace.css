@@ -2233,3 +2233,25 @@ body.placing:has(.page-window:not([hidden])) .place-tag {
 .place-hud .place-guide-now {
   padding: 0 10px;
 }
+
+/* The welcome the first time in a town (G4): above the ways to play it, Skip at its end. */
+.place-welcome {
+  flex: 0 0 calc(100% - 12px);
+  margin: 4px 6px 2px;
+  font-size: 13px;
+  line-height: 1.35;
+}
+.place-welcome[hidden],
+.place-modes-words[hidden] {
+  display: none;
+}
+.place-welcome-leave {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted, #a9bbe2);
+}
+.place-hud .place-welcome-skip {
+  display: block;
+  margin: 4px 0 0 auto;
+  padding: 0 14px;
+}

@@ -171,6 +171,8 @@ export class PlaceHud {
   private readonly modeKey = el("button", "place-mode");
   private readonly modes = el("div", "place-modes");
   private readonly modesWords = el("p", "place-modes-words");
+  /** The welcome the first time in a town (G4). */
+  private readonly welcome = el("div", "place-welcome");
   private readonly modeKeys = new Map<PlaceMode, HTMLButtonElement>();
   private readonly menuKey = el("button", "place-menu-key", "≡");
   private readonly menu = el("div", "place-menu");
@@ -277,7 +279,29 @@ export class PlaceHud {
     this.bar.append(back, id, sky, this.modeKey, this.menuKey);
     // (The pill in the bar on a desk, under it on a phone: placed once the chrome is put together, below.)
     this.deskQuery?.addEventListener?.("change", () => this.placePill());
-    this.modes.append(this.modesWords);
+    // (The first time in a town, a welcome over the ways to play it: G4. Shown once; Skip, or choosing a way, ends it.)
+    const skip = el("button", "place-welcome-skip", "Skip");
+    skip.setAttribute("aria-label", "Skip the welcome: play on as it is run now");
+    skip.onclick = () => {
+      this.guide.welcome();
+      this.choosing(false);
+    };
+    this.welcome.append(
+      el("b", "", "Welcome to the town."),
+      el(
+        "span",
+        "",
+        " Its people live their day by themselves, hour by hour. You can step in and run it, let its own head run it, or just watch. Choose a way below; ✋ on the bar changes it later.",
+      ),
+      el(
+        "span",
+        "place-welcome-leave",
+        " To leave the town, tap ◂ at the top left, or ≡ and then Leave the town. 🎓 Lessons, in ≡, show you the rest.",
+      ),
+      skip,
+    );
+    this.welcome.hidden = true;
+    this.modes.append(this.welcome, this.modesWords);
     for (const [mode, sign, words, does] of MODES) {
       const b = el("button", "place-mode-choice");
       b.append(
@@ -286,6 +310,7 @@ export class PlaceHud {
       );
       b.dataset.mode = mode;
       b.onclick = () => {
+        if (!this.welcome.hidden) this.guide.welcome();
         this.choosing(false);
         if (mode !== this.ran) this.onMode(mode);
       };
@@ -494,6 +519,11 @@ export class PlaceHud {
     this.modesWords.textContent = entering
       ? "How is this town to be run? You can change it from ✋ on the bar."
       : "How is this town to be run?";
+    // (The welcome, the first time in only: G4.)
+    const welcoming = on && entering && !this.guide.welcomed;
+    this.welcome.hidden = !welcoming;
+    this.modesWords.hidden = welcoming;
+    this.modes.classList.toggle("welcoming", welcoming);
     this.modeKey.setAttribute("aria-expanded", String(on));
     this.element.classList.toggle("choosing", on);
   }

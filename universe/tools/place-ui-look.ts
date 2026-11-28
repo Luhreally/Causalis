@@ -267,8 +267,15 @@ for (const view of [
   }
   await page.waitForTimeout(1500);
   check((await shown(".place-mode-choice")) === 3, "the three ways are asked on entering");
+  // (The first time in, a welcome over the ways: G4. Once a way is chosen, never again.)
+  check(
+    (await shown(".place-welcome")) > 0 && /Welcome/.test(await text(".place-welcome")),
+    "a welcome the first time in",
+  );
+  check(/leave/i.test(await text(".place-welcome")), "the welcome says how to leave");
   await look("02-choose-on-entry", "the ways asked on entering");
   await press('.place-mode-choice[data-mode="hand"]', "✋ Run it");
+  check((await shown(".place-welcome")) === 0, "the welcome gone once a way is chosen");
   await page.waitForTimeout(1200);
   const date = await text(".place-date");
   check(
@@ -1392,6 +1399,7 @@ for (const view of [
   // Run by its head, then watched, then by hand again.
   await press(".place-mode", "how it is run");
   await look("09-choosing", "the ways shown from the bar");
+  check((await shown(".place-welcome")) === 0, "no welcome again: it is shown once");
   await press('.place-mode-choice[data-mode="steward"]', "🏛 Its head runs it");
   await page.waitForTimeout(2500);
   await look("10-steward", "the town run by its head");
