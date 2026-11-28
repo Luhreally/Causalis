@@ -165,7 +165,10 @@ export function festerNext(load: number, fight: number): number {
 export function painOf(abed: boolean, mending: boolean, dressed: boolean, fester: number): number {
   const wound = abed ? 0.55 : mending ? 0.2 : 0;
   if (!wound && !fester) return 0;
-  return Math.min(1, wound + (abed && !dressed ? 0.15 : 0) + 0.4 * Math.min(1, fester / FESTER_MOST));
+  return Math.min(
+    1,
+    wound + (abed && !dressed ? 0.15 : 0) + 0.4 * Math.min(1, fester / FESTER_MOST),
+  );
 }
 /**
  * The share of a land's care that is brought by remedies in hand (herb-lore's and medicine's, rules/wounds.ts

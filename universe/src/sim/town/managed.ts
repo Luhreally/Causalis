@@ -598,7 +598,8 @@ export function installManaged(world: World, ctx: () => PopulationContext): Mana
         was = m.bills ?? [],
         at = was.findIndex((x, k) => k % 2 === 0 && x === a.good),
         next: number[] = [];
-      for (let k = 0; k < was.length; k += 2) if (was[k] !== a.good) next.push(was[k]!, was[k + 1]!);
+      for (let k = 0; k < was.length; k += 2)
+        if (was[k] !== a.good) next.push(was[k]!, was[k + 1]!);
       if (a.until !== null) {
         // (Kept where it stood among them, unless put first.)
         const into = a.first ? 0 : at >= 0 ? at : next.length;
@@ -763,7 +764,10 @@ export function installManaged(world: World, ctx: () => PopulationContext): Mana
     type: "place.free",
     validate: (args) => {
       const a = args as { person?: unknown };
-      return held(args) ?? (whole(a.person, 1, 0xfffffffe) ? null : "person must be one of its people's numbers");
+      return (
+        held(args) ??
+        (whole(a.person, 1, 0xfffffffe) ? null : "person must be one of its people's numbers")
+      );
     },
     apply: (command, t) => {
       const a = command.args as { town: Ref; person: number },
@@ -778,7 +782,10 @@ export function installManaged(world: World, ctx: () => PopulationContext): Mana
     type: "place.gate",
     validate: (args) => {
       const a = args as { shut?: unknown };
-      return held(args) ?? (a.shut === true || a.shut === null ? null : "shut is true, or null to open it");
+      return (
+        held(args) ??
+        (a.shut === true || a.shut === null ? null : "shut is true, or null to open it")
+      );
     },
     apply: (command, t) => {
       const a = command.args as { town: Ref; shut: true | null },

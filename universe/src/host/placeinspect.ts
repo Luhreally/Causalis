@@ -60,7 +60,7 @@ import { skillLine, temperWords } from "./inspect/place.ts";
 import { groundReading } from "./inspect/ground.ts";
 import { placeFields, placeInside } from "./placeinside.ts";
 import { placeBelow } from "./placebelow.ts";
-import { placeLegends, placeWork } from "./placelegends.ts";
+import { placeLegends, placeWork, workName } from "./placelegends.ts";
 import { placeGate } from "./placevisitors.ts";
 import { placeFamily } from "./placefamily.ts";
 import { bondWords, placeBound } from "./placebound.ts";
@@ -223,7 +223,8 @@ function tableOf(
   const h = place.people.house[i]!,
     held: string[] = [];
   for (let k = 0; k < FOODS.length; k++)
-    if (place.houses.pantry[h * FOODS.length + k]! > 0) held.push(GOODS[FOODS[k]!]!.name.toLowerCase());
+    if (place.houses.pantry[h * FOODS.length + k]! > 0)
+      held.push(GOODS[FOODS[k]!]!.name.toLowerCase());
   const most = fareMost(place, Math.floor(place.t / DAY)),
     table = !held.length
       ? "Their household's pantry is bare: they eat what they can get"
@@ -258,8 +259,7 @@ function needsMore(
     ];
   // (Beauty where the town has works to see.)
   if (place.works?.length) {
-    const want =
-      x.fine < 0 ? 1 : Math.max(0, 1 - (x.fine + 1) / WORK_QUALITY.length);
+    const want = x.fine < 0 ? 1 : Math.max(0, 1 - (x.fine + 1) / WORK_QUALITY.length);
     out.push({
       name: "Beauty",
       level: want,
@@ -357,8 +357,7 @@ export function inspectItem(
   };
 }
 /** The town's cloth, in a word or two (its clothes). */
-const stuffsWord = (world: World, place: Place): string =>
-  landCloth(world, place.cell).name;
+const stuffsWord = (world: World, place: Place): string => landCloth(world, place.cell).name;
 /** A cook's skill at it, said of their meals. */
 const COOK_WORDS = ["poor", "plain", "good", "fine", "a master's"] as const;
 /** Each facet of one's nature at its two ends (host/place.ts FACETS). */
@@ -438,10 +437,7 @@ export function inspectPerson(world: World, place: Place, id: number): PlaceInsp
         const name = namedOf(src);
         return name
           ? {
-              ref:
-                placeIndexOf(place, src) >= 0
-                  ? placePersonRef(place.town, src)
-                  : null,
+              ref: placeIndexOf(place, src) >= 0 ? placePersonRef(place.town, src) : null,
               name,
             }
           : null;
@@ -457,22 +453,11 @@ export function inspectPerson(world: World, place: Place, id: number): PlaceInsp
       const j = placeIndexOf(place, other);
       if (j < 0) return base;
       const at = { k: -1 },
-        clash = valueClash(
-          placeValues(place, i),
-          placeValues(place, j),
-          place.matched.ways,
-          at,
-        );
-      return clash >= 0.25 && at.k >= 0
-        ? `${base}, over ${VALUE_WORDS[at.k]}`
-        : base;
+        clash = valueClash(placeValues(place, i), placeValues(place, j), place.matched.ways, at);
+      return clash >= 0.25 && at.k >= 0 ? `${base}, over ${VALUE_WORDS[at.k]}` : base;
     },
     hd = (x: (typeof terms)[number]) =>
-      x.cond
-        ? COND_WORDS[x.cond]
-        : x.thought
-          ? MEMORY_WORDS[x.thought]
-          : THOUGHT_WORDS[x.bit],
+      x.cond ? COND_WORDS[x.cond] : x.thought ? MEMORY_WORDS[x.thought] : THOUGHT_WORDS[x.bit],
     thoughts: PlaceThought[] = [
       ...terms.map((x) => {
         const from = fromOf(x.src),
@@ -483,9 +468,7 @@ export function inspectPerson(world: World, place: Place, id: number): PlaceInsp
             ? x.src === id
               ? `Their own cooking, ${COOK_WORDS[Math.max(0, Math.min(4, (x.size + 2) / 2))] ?? "plain"}`
               : `Meals cooked at home, ${COOK_WORDS[Math.max(0, Math.min(4, (x.size + 2) / 2))] ?? "plain"}`
-            : (x.thought === THOUGHT.quarrel || x.thought === THOUGHT.brawl) &&
-                x.src &&
-                x.src > 0
+            : (x.thought === THOUGHT.quarrel || x.thought === THOUGHT.brawl) && x.src && x.src > 0
               ? overWords(base, x.src)
               : x.cond === COND.rite && x.size < 0
                 ? "No shrine where their faith keeps its rites"
@@ -523,9 +506,7 @@ export function inspectPerson(world: World, place: Place, id: number): PlaceInsp
   // (Their nature, the facets far from the middle; what they hold dear and set little store by, against their land.)
   const facets = placeFacets(place, i),
     nature = facets
-      .map((x, k) =>
-        x >= 0.75 ? FACET_WORDS[k]![0] : x <= 0.25 ? FACET_WORDS[k]![1] : null,
-      )
+      .map((x, k) => (x >= 0.75 ? FACET_WORDS[k]![0] : x <= 0.25 ? FACET_WORDS[k]![1] : null))
       .filter((x): x is string => !!x),
     values = placeValues(place, i),
     ways = place.matched.ways,
@@ -676,7 +657,12 @@ export function inspectPerson(world: World, place: Place, id: number): PlaceInsp
     ],
     tier: (() => {
       const t = placeTier(place, i);
-      return { tier: t.tier, words: t.words, pinned: t.pinned !== null, soft: t.pinned !== null && t.pinned >= 0 };
+      return {
+        tier: t.tier,
+        words: t.words,
+        pinned: t.pinned !== null,
+        soft: t.pinned !== null && t.pinned >= 0,
+      };
     })(),
   };
 }
@@ -698,7 +684,9 @@ function portraitOf(
   let body = bodies.get(kind);
   if (body === undefined) {
     const mix = kind > 0 ? mixOf(world) : null;
-    body = mix ? figureBody(kindBody(homePlanet(world).generated, mix, kind), null) : peopleBody(world);
+    body = mix
+      ? figureBody(kindBody(homePlanet(world).generated, mix, kind), null)
+      : peopleBody(world);
     bodies.set(kind, body);
   }
   const age = (place.t / DAY - p.born[j]!) / 365;
@@ -740,7 +728,10 @@ function tiesOf(
             : REASON_WORDS[x.kind]!;
         return `${of} ${signed(x.size)}${x.days ? `, ${x.days} ${x.days === 1 ? "day" : "days"} ago` : ", today"}`;
       });
-    if (o.kin) parts.push(o.kin > 0 ? `keeps them, as kin ${signed(o.kin)}` : `lets them go wanting ${signed(o.kin)}`);
+    if (o.kin)
+      parts.push(
+        o.kin > 0 ? `keeps them, as kin ${signed(o.kin)}` : `lets them go wanting ${signed(o.kin)}`,
+      );
     if (o.regard) parts.push(`their meetings ${signed(o.regard)}`);
     return parts.join("; ");
   };
@@ -846,15 +837,8 @@ function healthGear(
     ]);
   // (The tissue it reached: why it bled so, hurts so and takes so much of its member's work while it mends.)
   if (hurtNow && x.tissue)
-    rows.push([
-      "Reached",
-      `${cap(TISSUE_WORDS[x.tissue])}: ${TISSUE_WHY[x.tissue]}`,
-    ]);
-  if (hurtNow)
-    rows.push([
-      "Pain",
-      `${cap(painWords(x.pain))} (${Math.round(x.pain * 10)} of 10)`,
-    ]);
+    rows.push(["Reached", `${cap(TISSUE_WORDS[x.tissue])}: ${TISSUE_WHY[x.tissue]}`]);
+  if (hurtNow) rows.push(["Pain", `${cap(painWords(x.pain))} (${Math.round(x.pain * 10)} of 10)`]);
   if (hurtNow || x.blood > 0) {
     const h = placeHealer(place);
     if (h.i >= 0)
@@ -989,12 +973,12 @@ export function inspectLot(world: World, place: Place, lot: number): PlaceInspec
           subject =
             x.what < 0
               ? "the town itself"
-              : `${s >= 0 ? who(s).name : "one of the town"} who ${hapWords(x.what)}, on day ${x.day % 365 + 1} of the year ${Math.floor(x.day / 365)}`;
+              : `${s >= 0 ? who(s).name : "one of the town"} who ${hapWords(x.what)}, on day ${(x.day % 365) + 1} of the year ${Math.floor(x.day / 365)}`;
         return {
           id: m >= 0 ? x.maker : null,
           // (Its own page, O9: its maker a tap on from there.)
           ref: placeWorkRef(place.town, lot, x.made, x.maker),
-          name: `${cap(WORK_QUALITY[x.quality] ?? "plain")} ${x.form}`,
+          name: workName(world, place, x),
           words: `showing ${subject}; by ${m >= 0 ? who(m).name : "one gone from the town"}`,
         };
       }),
@@ -1117,7 +1101,8 @@ function lotZone(
     z = lot >= 0 ? placeZone(world, place, lot) : { zone: -1, holds: false };
   if (z.zone === ZONE.meet) {
     const homes = new Set<number>();
-    for (const home of place.houses.home) if (home >= 0 && placeMeetFor(world, place, home) === lot) homes.add(home);
+    for (const home of place.houses.home)
+      if (home >= 0 && placeMeetFor(world, place, home) === lot) homes.add(home);
     return {
       zone: "meet",
       clearable,
@@ -1135,7 +1120,9 @@ function lotZone(
   return {
     zone: null,
     clearable,
-    zoneWords: clearable ? "" : "A store: it cannot be kept clear, the town's households fetch their food from it.",
+    zoneWords: clearable
+      ? ""
+      : "A store: it cannot be kept clear, the town's households fetch their food from it.",
   };
 }
 
@@ -1155,7 +1142,9 @@ export function placeInspect(world: World, town: string, ref: string): PlaceInsp
   if (ref.startsWith("plcw:")) {
     // (plcw:<town>:<lot + 3>:<made>:<maker>: the town's own key has colons of its own.)
     const [lot, made, maker] = ref.split(":").slice(-3).map(Number) as [number, number, number];
-    return [lot, made, maker].every(Number.isInteger) ? placeWork(world, place, lot - 3, made, maker) : null;
+    return [lot, made, maker].every(Number.isInteger)
+      ? placeWork(world, place, lot - 3, made, maker)
+      : null;
   }
   if (ref.startsWith("plcg:")) {
     // (plcg:<town>:<holder>:<kind>: the town's own key has colons of its own.)

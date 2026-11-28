@@ -104,7 +104,14 @@ export function placeOverlay(world: World, place: Place, kind: PlaceOverlayKind)
         words: `${x.room >= 1 ? "A bed each" : `${Math.round(x.room * 100)}% of a bed each`} for the ${x.n} under its roof; ${x.fine < 0 ? "no work of the town's in sight of its door" : `a ${WORK_QUALITY[x.fine]} work in sight of its door`}`,
       });
     }
-    return { of: kind, lots, low: "Roomy and fair", high: "Crowded and plain", good: "low", fire: null };
+    return {
+      of: kind,
+      lots,
+      low: "Roomy and fair",
+      high: "Crowded and plain",
+      good: "low",
+      fire: null,
+    };
   }
   // Its zones (O2): each meeting place and the homes it gathers, and each lot kept clear.
   if (kind === "zones") {
@@ -130,7 +137,9 @@ export function placeOverlay(world: World, place: Place, kind: PlaceOverlayKind)
         lots.push({
           lot,
           v: 1,
-          words: z.holds ? "Kept clear: none go here but to a fire" : "Zoned clear, but a store cannot be kept clear",
+          words: z.holds
+            ? "Kept clear: none go here but to a fire"
+            : "Zoned clear, but a store cannot be kept clear",
         });
     }
     return { of: kind, lots, low: "Meeting place", high: "Kept clear", good: "low", fire: null };

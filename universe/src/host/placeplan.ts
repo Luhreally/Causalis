@@ -323,7 +323,9 @@ export function whyWords(world: World, place: Place, i: number): string {
       return `Standing to arms ${(() => {
         // (At the post your order gives, O7: watching the homes within a cry of it.)
         const post = managedOf(world)?.get(place.town)?.post;
-        return post === undefined ? "in the square" : `at their post, ${lotWords(place, post)}, watching the homes within a cry of it`;
+        return post === undefined
+          ? "in the square"
+          : `at their post, ${lotWords(place, post)}, watching the homes within a cry of it`;
       })()} ${byOrder(place, "respond:muster")}, in the hours their work would have had`;
     case WHY.watch: {
       // (The night's watch at the guard's post, O7.)
@@ -1105,8 +1107,7 @@ export function peopleSheet(
   const attention = order.map((i) => attentionOf(place, i)),
     at = new Map(order.map((i, k) => [i, attention[k]!]));
   order.sort(
-    (a, b) =>
-      pinned[b]! - pinned[a]! || at.get(b)!.score - at.get(a)!.score || p.id[a]! - p.id[b]!,
+    (a, b) => pinned[b]! - pinned[a]! || at.get(b)!.score - at.get(a)!.score || p.id[a]! - p.id[b]!,
   );
   const posts: { lot: number; name: string }[] = [];
   for (let b = 1; b < place.bldgs.lot.length; b++)
@@ -1373,9 +1374,7 @@ export function billRows(world: World, place: Place, lot: number | null = null):
       order: k >= 0 ? k / 2 : null,
     });
   }
-  return rows.sort(
-    (a, b) => (a.order ?? 1e9) - (b.order ?? 1e9) || a.good - b.good,
-  );
+  return rows.sort((a, b) => (a.order ?? 1e9) - (b.order ?? 1e9) || a.good - b.good);
 }
 /** What one of a town's stores takes (N10): its market (0) every good; its granary (1) its foods. */
 export function storeTakes(world: World, place: Place, store: number): PlaceStoreTakes {
@@ -1424,31 +1423,24 @@ export function placeSince(
     );
   if (came || left)
     lines.push(
-      [came ? of(came, "came to the town", "came to the town") : null, left ? of(left, "left it", "left it") : null]
+      [
+        came ? of(came, "came to the town", "came to the town") : null,
+        left ? of(left, "left it", "left it") : null,
+      ]
         .filter(Boolean)
         .join(", ") + ".",
     );
   if (want(HAP.paired)) lines.push(`${of(want(HAP.paired), "pair was", "pairs were")} made.`);
   if (want(HAP.struckHurt) + want(HAP.hurt) + want(HAP.wounded))
-    lines.push(
-      `${want(HAP.struckHurt) + want(HAP.hurt) + want(HAP.wounded)} were hurt.`,
-    );
+    lines.push(`${want(HAP.struckHurt) + want(HAP.hurt) + want(HAP.wounded)} were hurt.`);
   if (want(HAP.broke))
-    lines.push(
-      `${of(want(HAP.broke), "broke down", "broke down")}, a mood too low to bear.`,
-    );
+    lines.push(`${of(want(HAP.broke), "broke down", "broke down")}, a mood too low to bear.`);
   if (want(HAP.judged))
-    lines.push(
-      `${of(want(HAP.judged), "was", "were")} brought before its justice.`,
-    );
-  if (want(HAP.madeWork))
-    lines.push(`${of(want(HAP.madeWork), "work was", "works were")} made.`);
-  if (want(HAP.brawl))
-    lines.push(`${of(want(HAP.brawl), "came to blows", "came to blows")}.`);
+    lines.push(`${of(want(HAP.judged), "was", "were")} brought before its justice.`);
+  if (want(HAP.madeWork)) lines.push(`${of(want(HAP.madeWork), "work was", "works were")} made.`);
+  if (want(HAP.brawl)) lines.push(`${of(want(HAP.brawl), "came to blows", "came to blows")}.`);
   if (want(HAP.stole))
-    lines.push(
-      `${of(want(HAP.stole), "stole", "stole")} from other households, in want.`,
-    );
+    lines.push(`${of(want(HAP.stole), "stole", "stole")} from other households, in want.`);
   if (want(HAP.caught))
     lines.push(
       `${of(want(HAP.caught), "was", "were")} caught stealing by the watch at the guard's post.`,
@@ -2089,7 +2081,9 @@ export function placeQueries(villagePlan: QueryHandler): Readonly<Record<string,
     "place.people": (world, args) => {
       const place = kept(world, args),
         a = args as { occ?: number | null; pins?: unknown },
-        pins = Array.isArray(a.pins) ? a.pins.filter((x): x is string => typeof x === "string") : [];
+        pins = Array.isArray(a.pins)
+          ? a.pins.filter((x): x is string => typeof x === "string")
+          : [];
       return place
         ? peopleSheet(world, place, typeof a.occ === "number" ? a.occ : null, 60, pins)
         : null;
@@ -2116,7 +2110,8 @@ export function placeQueries(villagePlan: QueryHandler): Readonly<Record<string,
           if (on.has(ref)) {
             if (placeTier(place, i).pinned !== -1) placePin(place, p.id[i]!, -1);
             n++;
-          } else if (off.has(ref) && placeTier(place, i).pinned === -1) placePin(place, p.id[i]!, null);
+          } else if (off.has(ref) && placeTier(place, i).pinned === -1)
+            placePin(place, p.id[i]!, null);
         }
       return n;
     },

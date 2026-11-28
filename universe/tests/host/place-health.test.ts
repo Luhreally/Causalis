@@ -82,7 +82,10 @@ test("the world's shares of the dead of wounds, lived by the hour", () => {
     const none = festerChance(blow) * lethal(0),
       full = festerChance(blow) * lethal(1);
     assert.ok(Math.abs(none - DIED_OF_WOUNDS[blow] / 2) < 0.003, `${blow}: ${none} festered`);
-    assert.ok(Math.abs(full / none - (1 - WOUNDS.save)) < 0.02, `${blow}: full care leaves ${full / none}`);
+    assert.ok(
+      Math.abs(full / none - (1 - WOUNDS.save)) < 0.02,
+      `${blow}: full care leaves ${full / none}`,
+    );
   }
   // A day's remedies add to the fight; blood lost takes from it; a wound hurts the more fresh, undressed and festering.
   assert.ok(remedyFight(0.6) > 0 && remedyFight(0) === 0);
@@ -146,7 +149,8 @@ test("a fire's hurt bleed, are dressed, may fester, hurt, and the healer goes to
     const r = inspectPerson(w, place, p().id[one]!)!;
     assert.ok(r.kind === "person");
     const rows = r.healthRows.map((x) => x[0]);
-    for (const k of ["Bleeding", "Festering", "Pain"]) assert.ok(rows.includes(k), `the Health tab tells ${k}`);
+    for (const k of ["Bleeding", "Festering", "Pain"])
+      assert.ok(rows.includes(k), `the Health tab tells ${k}`);
   }
   // Alerts read off the same: no alert of bleeding where none bleeds.
   const bleeding = [...Array(p().n).keys()].some((i) => placeWound(place, i).bleeding > 0);

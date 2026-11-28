@@ -319,7 +319,9 @@ for (const view of [
     await press('.place-pace[data-pace="600"]', "the ten-minutes-a-second pace");
     await k("globalThis.causalis.place.uiCost()");
     await page.waitForTimeout(4000);
-    const c = await k<{ ms: number; frames: number; signs?: unknown }>("globalThis.causalis.place.uiCost()");
+    const c = await k<{ ms: number; frames: number; signs?: unknown }>(
+      "globalThis.causalis.place.uiCost()",
+    );
     say(`  of it, the signs over heads: ${JSON.stringify(c.signs ?? null)}`);
     await press('.place-pace[data-pace="0"]', "the pause");
     await k("globalThis.causalis.place.inspect(null)");
@@ -334,10 +336,16 @@ for (const view of [
     let b = { signs: 0, talks: 0, near: 0 };
     for (let tries = 0; tries < 12 && !b.signs; tries++) {
       await page.waitForTimeout(500);
-      b = await k<{ signs: number; talks: number; near: number }>("globalThis.causalis.place.state().bubbles");
+      b = await k<{ signs: number; talks: number; near: number }>(
+        "globalThis.causalis.place.state().bubbles",
+      );
     }
-    say(`over heads near the eye: ${b.signs} signs, ${b.talks} of them two talking, of ${b.near} near it with one`);
-    say(`  what they cost: ${JSON.stringify(await k("globalThis.causalis.place.state().bubbles.ms"))}`);
+    say(
+      `over heads near the eye: ${b.signs} signs, ${b.talks} of them two talking, of ${b.near} near it with one`,
+    );
+    say(
+      `  what they cost: ${JSON.stringify(await k("globalThis.causalis.place.state().bubbles.ms"))}`,
+    );
     check(b.signs > 0 || b.near === 0, "signs over heads near the eye, where any near it has one");
     const over = await k<number>(
       `(() => { const r = [...document.querySelectorAll(".place-bubble:not(.off)")].map((e) => e.getBoundingClientRect()); let n = 0; for (let a = 0; a < r.length; a++) for (let c = a + 1; c < r.length; c++) if (r[a].left < r[c].right - 1 && r[c].left < r[a].right - 1 && r[a].top < r[c].bottom - 1 && r[c].top < r[a].bottom - 1) n++; return n; })()`,
@@ -455,9 +463,20 @@ for (const view of [
       await page.waitForTimeout(700);
       say(`${tab}: ${(await text(".place-insp-body")).slice(0, 400)}`);
       // (Q2: whom they know as a web of portraits, and why they think as they do of each.)
-      if (tab === "social" && (await shown(".place-insp-person.tie-friend, .place-insp-person.tie-known, .place-insp-person.tie-rival")) > 0) {
-        check((await shown(".place-insp-web")) === 1, "the Social tab draws the web of whom they know");
-        check(/Known well to/.test(await text(".place-insp-body")), "the Social tab says how the town thinks of them");
+      if (
+        tab === "social" &&
+        (await shown(
+          ".place-insp-person.tie-friend, .place-insp-person.tie-known, .place-insp-person.tie-rival",
+        )) > 0
+      ) {
+        check(
+          (await shown(".place-insp-web")) === 1,
+          "the Social tab draws the web of whom they know",
+        );
+        check(
+          /Known well to/.test(await text(".place-insp-body")),
+          "the Social tab says how the town thinks of them",
+        );
       }
       await look(`15-insp-${tab}`, `the inspector's ${tab} tab`);
     }
@@ -499,7 +518,9 @@ for (const view of [
     } else say("the one inspected keeps no work: no orders to look at");
     // Their table, and what they take where they need it (P4): on their first screen.
     check((await shown(".place-insp-table")) > 0, "their household's table told on their page");
-    say(`table: ${await text(".place-insp-table")}${(await shown(".place-insp-takes")) ? ` · ${await text(".place-insp-takes")}` : ""}`);
+    say(
+      `table: ${await text(".place-insp-table")}${(await shown(".place-insp-takes")) ? ` · ${await text(".place-insp-takes")}` : ""}`,
+    );
     // Their family (P3): from their page, and Back to them.
     {
       const kind = () => k<string>('document.querySelector(".place-insp")?.dataset.kind ?? ""');
@@ -680,7 +701,11 @@ for (const view of [
     );
     await page.waitForTimeout(300);
     await press(".place-insp-zones .place-chip:nth-child(2)", "Meeting place, on the lot's page");
-    await until("the lot zoned a meeting place", async () => /A meeting place/.test(await text(".place-insp-body")), 8000);
+    await until(
+      "the lot zoned a meeting place",
+      async () => /A meeting place/.test(await text(".place-insp-body")),
+      8000,
+    );
     say(`zoned: ${(await text(".place-insp-body")).match(/A meeting place[^.]*\./)?.[0] ?? ""}`);
     check(/Ground: /.test(await text(".place-insp-body")), "a lot's page says what its ground is");
     await look("20b-insp-zone", "a lot zoned a meeting place");
@@ -688,14 +713,27 @@ for (const view of [
     await k('document.querySelector(".place-insp-post")?.scrollIntoView({ block: "center" })');
     await page.waitForTimeout(300);
     await press(".place-insp-post", "Post the guard here, on the lot's page");
-    await until("the lot made the guard's post", async () => /The guard's post by your order/.test(await text(".place-insp-body")), 8000);
-    check(/The guard's post by your order/.test(await text(".place-insp-body")), "a lot posted says it is the guard's post");
-    say(`posted: ${(await text(".place-insp-body")).match(/The guard's post by your order[^.]*\.[^.]*\./)?.[0] ?? ""}`);
+    await until(
+      "the lot made the guard's post",
+      async () => /The guard's post by your order/.test(await text(".place-insp-body")),
+      8000,
+    );
+    check(
+      /The guard's post by your order/.test(await text(".place-insp-body")),
+      "a lot posted says it is the guard's post",
+    );
+    say(
+      `posted: ${(await text(".place-insp-body")).match(/The guard's post by your order[^.]*\.[^.]*\./)?.[0] ?? ""}`,
+    );
     await look("20b2-insp-post", "a lot made the guard's post");
     await k('document.querySelector(".place-insp-post")?.scrollIntoView({ block: "center" })');
     await page.waitForTimeout(300);
     await press(".place-insp-post", "the guard's post, back to the square");
-    await until("the post let go", async () => !/The guard's post by your order/.test(await text(".place-insp-body")), 8000);
+    await until(
+      "the post let go",
+      async () => !/The guard's post by your order/.test(await text(".place-insp-body")),
+      8000,
+    );
     // Inside it (O3): its plan on its tiles; one of those there opened from it, and Back to the plan, and to the lot.
     await k('document.querySelector(".place-insp-inside")?.scrollIntoView({ block: "center" })');
     await page.waitForTimeout(300);
@@ -712,15 +750,23 @@ for (const view of [
         `globalThis.causalis.client.query({ type: "place.overlay", args: { ref: ${JSON.stringify(town.ref)}, of: "room" } }).then((o) => o?.lots?.find((l) => /^[1-9]/.test(l.words))?.lot ?? null)`,
       );
       if (home !== null) {
-        await k(`globalThis.causalis.place.inspect(${JSON.stringify(`plci:${town.ref}:${home + 3}`)})`);
+        await k(
+          `globalThis.causalis.place.inspect(${JSON.stringify(`plci:${town.ref}:${home + 3}`)})`,
+        );
         homeToo = true;
-        await until("a home's plan", async () => (await shown(".place-insp-people .place-insp-person")) > 0, 8000);
+        await until(
+          "a home's plan",
+          async () => (await shown(".place-insp-people .place-insp-person")) > 0,
+          8000,
+        );
         await page.waitForTimeout(600);
         await look("20d-inside-home", "inside a home, its household there");
       }
     }
     if ((await shown(".place-insp-people .place-insp-person")) > 0) {
-      await k('document.querySelector(".place-insp-people .place-insp-person")?.scrollIntoView({ block: "center" })');
+      await k(
+        'document.querySelector(".place-insp-people .place-insp-person")?.scrollIntoView({ block: "center" })',
+      );
       await page.waitForTimeout(300);
       await press(".place-insp-people .place-insp-person", "one of those inside");
       await until("their page", async () => (await shown(".place-inside-plan")) === 0, 8000);
@@ -735,8 +781,15 @@ for (const view of [
     } else say("no one inside now: none to open from the plan");
     if (homeToo) await press(".place-insp-back", "‹ Back from the home to the building's plan");
     await press(".place-insp-back", "‹ Back to the lot's page");
-    await until("the lot's page", async () => /Ground: /.test(await text(".place-insp-body")), 8000);
-    check(/Ground: /.test(await text(".place-insp-body")), "Back from inside comes to the lot's page");
+    await until(
+      "the lot's page",
+      async () => /Ground: /.test(await text(".place-insp-body")),
+      8000,
+    );
+    check(
+      /Ground: /.test(await text(".place-insp-body")),
+      "Back from inside comes to the lot's page",
+    );
     // Its things (O5): one kept in a home opened from its plan, on its own page; its holder a tap away; Back and Forward.
     const kept = await k<number | null>(
       `globalThis.causalis.client.query({ type: "place.overlay", args: { ref: ${JSON.stringify(town.ref)}, of: "room" } }).then((o) => o?.lots?.find((l) => /^[1-9]/.test(l.words))?.lot ?? null)`,
@@ -807,7 +860,9 @@ for (const view of [
     );
     await look("20f-fields", "the fields and the flock");
     if ((await shown(".place-insp-people .place-insp-person")) > 0) {
-      await k('document.querySelector(".place-insp-people .place-insp-person")?.scrollIntoView({ block: "center" })');
+      await k(
+        'document.querySelector(".place-insp-people .place-insp-person")?.scrollIntoView({ block: "center" })',
+      );
       await page.waitForTimeout(300);
       await press(".place-insp-people .place-insp-person", "one out in the fields");
       await until("their page", async () => (await kind()) === "person", 8000);
@@ -850,7 +905,9 @@ for (const view of [
     check((await shown(".place-legend-line")) > 0, "its legends tell what befell it");
     await look("20h-legends", "the town's legends");
     if ((await shown("button.place-legend-work")) > 0) {
-      await k('document.querySelector("button.place-legend-work")?.scrollIntoView({ block: "center" })');
+      await k(
+        'document.querySelector("button.place-legend-work")?.scrollIntoView({ block: "center" })',
+      );
       await page.waitForTimeout(300);
       await press("button.place-legend-work", "one of its works, in its legends");
       await until("the work's page", async () => (await kind()) === "work", 8000);
@@ -915,19 +972,30 @@ for (const view of [
     check((await kind()) === "lot", "Back from its faith comes to the square's page");
     // Raised by hand (P1): a home's lot page offers what the town could raise on its lots; asked there, it is offered no more.
     if (kept !== null) {
-      await k(`globalThis.causalis.place.inspect(${JSON.stringify(`plcl:${town.ref}:${kept + 3}`)})`);
+      await k(
+        `globalThis.causalis.place.inspect(${JSON.stringify(`plcl:${town.ref}:${kept + 3}`)})`,
+      );
       await until("a home's lot page", async () => (await kind()) === "lot", 8000);
       await k('globalThis.causalis.place.inspectHeight("half")');
       await page.waitForTimeout(600);
       const offered = await shown(".place-insp-raise-key");
       if (offered > 0) {
         say(`raise here: ${(await text(".place-insp-raise")).slice(0, 300)}`);
-        await k('document.querySelector(".place-insp-raise-key")?.scrollIntoView({ block: "center" })');
+        await k(
+          'document.querySelector(".place-insp-raise-key")?.scrollIntoView({ block: "center" })',
+        );
         await page.waitForTimeout(300);
         await look("20j-raise-here", "what could be raised on a home's lots");
         await press(".place-insp-raise-key", "Raise here, on a home's lot page");
-        await until("the asking taken", async () => (await shown(".place-insp-raise-key")) < offered, 8000);
-        check((await shown(".place-insp-raise-key")) < offered, "raised there: no longer offered on its lots");
+        await until(
+          "the asking taken",
+          async () => (await shown(".place-insp-raise-key")) < offered,
+          8000,
+        );
+        check(
+          (await shown(".place-insp-raise-key")) < offered,
+          "raised there: no longer offered on its lots",
+        );
       } else say("nothing the town could raise on this home's lots");
     }
     await k('globalThis.causalis.place.inspectHeight("peek")');
@@ -1023,7 +1091,8 @@ for (const view of [
   await press(".place-sheet-shut", "the sheet's close");
   await press(".place-lens-off", "× no overlay");
   // (The lot zoned above let go: the town as it was.)
-  if (lot !== null) await k(`globalThis.causalis.place.order("place.zone", { lot: ${lot}, zone: null })`);
+  if (lot !== null)
+    await k(`globalThis.causalis.place.order("place.zone", { lot: ${lot}, zone: null })`);
   check(
     (await k<number>("globalThis.causalis.place.overlaid().lots")) === 0,
     "no overlay once put away",
@@ -1041,7 +1110,9 @@ for (const view of [
       `globalThis.causalis.client.query({ type: "people.bar", args: { cell: null, town: null, pins: [], followed: [] } }).then((r) => { const x = r?.people.find((y) => !y.gone && !y.ref.startsWith("plc:")); return x ? { ref: x.ref, name: x.name } : null; })`,
     );
     if (row && far) {
-      await k(`(() => { const b = globalThis.causalis.barPins; for (const x of [...b.all]) b.off(x.ref); b.toggle(${JSON.stringify(row.ref)}, ${JSON.stringify(row.name)}); b.toggle(${JSON.stringify(far.ref)}, ${JSON.stringify(far.name)}); })()`);
+      await k(
+        `(() => { const b = globalThis.causalis.barPins; for (const x of [...b.all]) b.off(x.ref); b.toggle(${JSON.stringify(row.ref)}, ${JSON.stringify(row.name)}); b.toggle(${JSON.stringify(far.ref)}, ${JSON.stringify(far.name)}); })()`,
+      );
       await page.waitForTimeout(1200);
       await press('.place-tab[data-tab="people"]', "the People tab, two pinned");
       await page.waitForTimeout(1500);
@@ -1052,20 +1123,30 @@ for (const view of [
           `globalThis.causalis.client.query({ type: "place.people", args: { ref: ${JSON.stringify(town.ref)}, occ: 102, pins: globalThis.causalis.barPins.all.map((x) => x.ref) } }).then((s) => s?.pinned ?? -1)`,
         ),
         bar = await k<number>("globalThis.causalis.barPins.all.length");
-      say(`pinned: chip "${chip}", ${here} of its people pinned, ${bar} on the bar; first row "${(await text(".place-person-row")).slice(0, 60)}"`);
-      check(chip.endsWith(` ${here + 1}`), `the Pinned chip counts its pinned and the one elsewhere (${chip}; ${here} + 1)`);
+      say(
+        `pinned: chip "${chip}", ${here} of its people pinned, ${bar} on the bar; first row "${(await text(".place-person-row")).slice(0, 60)}"`,
+      );
       check(
-        await k<boolean>(`document.querySelector(".place-person-row")?.classList.contains("pinned") ?? false`),
+        chip.endsWith(` ${here + 1}`),
+        `the Pinned chip counts its pinned and the one elsewhere (${chip}; ${here} + 1)`,
+      );
+      check(
+        await k<boolean>(
+          `document.querySelector(".place-person-row")?.classList.contains("pinned") ?? false`,
+        ),
         "the pinned first in All, marked",
       );
       await press(".place-chip-pinned", "📌 Pinned");
       await page.waitForTimeout(1500);
       check(
-        await k<boolean>(`!!document.querySelector(\`.place-person[data-ref=\${JSON.stringify(${ref})}] .place-person-row.pinned\`)`),
+        await k<boolean>(
+          `!!document.querySelector(\`.place-person[data-ref=\${JSON.stringify(${ref})}] .place-person-row.pinned\`)`,
+        ),
         "under the chip: the one of it pinned on the bar",
       );
       check(
-        (await shown(".place-away-row")) === 1 && (await text(".place-away-row")).includes(far.name),
+        (await shown(".place-away-row")) === 1 &&
+          (await text(".place-away-row")).includes(far.name),
         `under the chip: the one elsewhere, greyed, with where they are (${await text(".place-away")})`,
       );
       await look("23-pinned", "the pinned, here and elsewhere");
@@ -1080,14 +1161,20 @@ for (const view of [
       await press(`.place-person[data-ref=${ref}] .place-row-unpin`, "📌✕ the one of it");
       await page.waitForTimeout(1500);
       check(
-        !(await k<boolean>(`globalThis.causalis.barPins.has(${ref}) || globalThis.causalis.barPins.has(${fake})`)),
+        !(await k<boolean>(
+          `globalThis.causalis.barPins.has(${ref}) || globalThis.causalis.barPins.has(${fake})`,
+        )),
         "both off the people bar",
       );
       check(
-        !(await k<boolean>(`!!document.querySelector(\`.place-person[data-ref=\${JSON.stringify(${ref})}]\`)`)),
+        !(await k<boolean>(
+          `!!document.querySelector(\`.place-person[data-ref=\${JSON.stringify(${ref})}]\`)`,
+        )),
         "the one of it no longer under the chip",
       );
-      await k(`[...document.querySelectorAll(".place-chip")].find((b) => /^All/.test(b.textContent ?? ""))?.click()`);
+      await k(
+        `[...document.querySelectorAll(".place-chip")].find((b) => /^All/.test(b.textContent ?? ""))?.click()`,
+      );
       await page.waitForTimeout(600);
       await press(".place-sheet-shut", "the sheet's close");
     } else say("no one of it, or no one elsewhere, to pin");

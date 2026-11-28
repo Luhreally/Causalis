@@ -160,7 +160,9 @@ test("a fire's priority says who goes to one: set never, they stay away", () => 
     place = enterPlace(w, s.ref)!;
   // Every other grown farmer and crafter set never to go to a fire. (All of them, near half its people, left a fire among
   // homes none to fight it but them.)
-  const never = [...grownAt(w, place, OCC.farmer), ...grownAt(w, place, OCC.crafter)].filter((_, k) => k % 2 === 0);
+  const never = [...grownAt(w, place, OCC.farmer), ...grownAt(w, place, OCC.crafter)].filter(
+    (_, k) => k % 2 === 0,
+  );
   assert.ok(never.length > 4);
   for (const id of never)
     order(w, "place.prio", {

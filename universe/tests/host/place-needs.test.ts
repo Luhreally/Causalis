@@ -4,12 +4,7 @@
 // the work's lot), the same for every tier, and is told on their page.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import {
-  HOUR,
-  loadWorld,
-  saveWorld,
-  type World,
-} from "../../src/kernel/index.ts";
+import { HOUR, loadWorld, saveWorld, type World } from "../../src/kernel/index.ts";
 import { populationContext, type Settlement } from "../../src/sim/index.ts";
 import {
   COND,
@@ -26,9 +21,7 @@ import { PLACE_UNIVERSE, placeWorld } from "./worlds.ts";
 
 const base = (): World => placeWorld(150);
 const copy = (w: World): World => {
-  const doc = JSON.parse(
-    JSON.stringify(saveWorld(w, "r", { universe: PLACE_UNIVERSE.name })),
-  );
+  const doc = JSON.parse(JSON.stringify(saveWorld(w, "r", { universe: PLACE_UNIVERSE.name })));
   return loadWorld(doc, (s) => PLACE_UNIVERSE.build(s), "r").world;
 };
 const near = (w: World, people: number): Settlement => {
@@ -75,19 +68,10 @@ test("comfort by their home's beds for all under it; beauty by a fine work in si
     x = placeNeedsMore(w, place, i);
   assert.ok(x.room < 1, `${x.under} under ${x.beds} beds`);
   const room = placeMoodTerms(w, place, i).find((t) => t.cond === COND.room)!;
-  assert.ok(
-    room && room.size < 0 && lotOfSrc(room.src!) === home,
-    JSON.stringify(room),
-  );
+  assert.ok(room && room.size < 0 && lotOfSrc(room.src!) === home, JSON.stringify(room));
   const seen = inspectPerson(w, place, place.people.id[i]!)!;
-  assert.ok(
-    seen.needs.some(
-      (n) => n.name === "Comfort" && /under their roof/.test(n.words ?? ""),
-    ),
-  );
-  assert.ok(
-    seen.thoughts.some((t) => /home's room/.test(t.words) && t.size < 0),
-  );
+  assert.ok(seen.needs.some((n) => n.name === "Comfort" && /under their roof/.test(n.words ?? "")));
+  assert.ok(seen.thoughts.some((t) => /home's room/.test(t.words) && t.size < 0));
   // A masterful work set at their very door: beauty, of that lot.
   place.works = [home, place.t, 0, 0, 0, 0, 4];
   go(w, ref, 24);

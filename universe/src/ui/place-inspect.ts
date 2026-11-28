@@ -171,7 +171,9 @@ export class PlaceInspector {
    * whom it goes on to again (false: none, greyed).
    */
   setBack(name: string | null, steps: boolean, ahead: string | null | false): void {
-    const words = steps ? `Back to ${name ?? "the one before"}` : "Back: close it, the eye where it was";
+    const words = steps
+      ? `Back to ${name ?? "the one before"}`
+      : "Back: close it, the eye where it was";
     this.backKey.title = words;
     this.backKey.setAttribute("aria-label", words);
     const on = ahead !== false;
@@ -309,9 +311,17 @@ export class PlaceInspector {
     // (How closely they are followed, and a key to follow them in full for good, or let them be. Tiers.)
     const tier = el("div", "place-insp-tier"),
       fixed = x.tier.pinned && !x.tier.soft,
-      pin = el("button", `place-insp-pin${fixed ? " on" : ""}`, fixed ? "★ Followed" : "☆ Follow closely");
+      pin = el(
+        "button",
+        `place-insp-pin${fixed ? " on" : ""}`,
+        fixed ? "★ Followed" : "☆ Follow closely",
+      );
     tier.append(
-      el("span", "place-insp-tier-words", `${cap(x.tier.words)}${x.tier.pinned ? (fixed ? ", by your word" : ", while looked at") : ""}`),
+      el(
+        "span",
+        "place-insp-tier-words",
+        `${cap(x.tier.words)}${x.tier.pinned ? (fixed ? ", by your word" : ", while looked at") : ""}`,
+      ),
       pin,
     );
     pin.setAttribute("aria-pressed", String(fixed));
@@ -323,7 +333,10 @@ export class PlaceInspector {
     body.push(tier);
     // (Their family, P3.)
     const family = el("button", "place-insp-family", "Family ▸");
-    family.setAttribute("aria-label", `${x.name}'s family: parents, brothers and sisters, children`);
+    family.setAttribute(
+      "aria-label",
+      `${x.name}'s family: parents, brothers and sisters, children`,
+    );
     family.onclick = () => this.onInspect(x.familyRef);
     body.push(family);
     // (A hand's orders, by name: a trade, or let be.)
@@ -385,8 +398,7 @@ export class PlaceInspector {
             `place-insp-thought ${t.size >= 0 ? "up" : "down"}${go ? " go" : ""}`,
           ),
           words = el("span", "place-insp-thought-words", t.words);
-        if (t.from)
-          words.append(el("span", "place-insp-thought-from", t.from.name));
+        if (t.from) words.append(el("span", "place-insp-thought-from", t.from.name));
         if (go) row.onclick = () => this.onInspect(t.from!.ref!);
         row.append(
           el("span", "place-insp-thought-icon", t.icon),
@@ -476,7 +488,9 @@ export class PlaceInspector {
       );
       if (x.ties.length) body.push(this.webOf(x));
       if (x.ties.length) {
-        const list = this.people(x.ties.map((t) => ({ ...t, words: t.why ? `${t.words}: ${t.why}` : t.words })));
+        const list = this.people(
+          x.ties.map((t) => ({ ...t, words: t.why ? `${t.words}: ${t.why}` : t.words })),
+        );
         // (Each marked by what they think of them: warm to cold.)
         x.ties.forEach((t, k) =>
           list.children[k]?.classList.add(
@@ -557,7 +571,13 @@ export class PlaceInspector {
         ["Made by", x.maker.name, x.maker.ref],
         ["Made", x.made, null],
         ["Kept at", x.kept, x.lotRef],
-        ["Seen by", x.seenBy ? `${x.seenBy} ${x.seenBy === 1 ? "household" : "households"}` : "None as their finest", null],
+        [
+          "Seen by",
+          x.seenBy
+            ? `${x.seenBy} ${x.seenBy === 1 ? "household" : "households"}`
+            : "None as their finest",
+          null,
+        ],
       ]),
       el("p", "place-insp-why", x.words),
     );
@@ -573,7 +593,10 @@ export class PlaceInspector {
       el("p", "place-insp-why", x.ways),
       el("p", "place-insp-why place-insp-rite", x.riteWords),
     ];
-    const keys = (rows: readonly { name: string; ref: string; words?: string }[], label: string) => {
+    const keys = (
+      rows: readonly { name: string; ref: string; words?: string }[],
+      label: string,
+    ) => {
       if (!rows.length) return;
       const box = el("div", "place-insp-people");
       for (const r of rows) {
@@ -602,7 +625,11 @@ export class PlaceInspector {
     if (x.kinds.length)
       body.push(
         el("p", "place-insp-label", "Its land's bondage"),
-        this.facts(x.kinds.map((k) => [k.name, `${k.here} here · ${k.words}`, null] as [string, string, null])),
+        this.facts(
+          x.kinds.map(
+            (k) => [k.name, `${k.here} here · ${k.words}`, null] as [string, string, null],
+          ),
+        ),
       );
     if (x.captives) body.push(el("p", "place-insp-why", x.captives));
     if (x.people.length) {
@@ -625,7 +652,10 @@ export class PlaceInspector {
     const kinN = x.siblings.length + x.children.length + x.grandchildren.length;
     this.sub.textContent = `${x.children.length} ${x.children.length === 1 ? "child" : "children"} · ${kinN + x.grandparents.length + (x.mate ? 1 : 0)} kin in the town`;
     const body: HTMLElement[] = [el("p", "place-insp-why", x.words)],
-      rows = (label: string, list: readonly { name: string; ref: string | null; words: string }[]) => {
+      rows = (
+        label: string,
+        list: readonly { name: string; ref: string | null; words: string }[],
+      ) => {
         if (!list.length) return;
         const box = el("div", "place-insp-people");
         for (const r of list) {
@@ -689,7 +719,11 @@ export class PlaceInspector {
     if (this.title.textContent !== title) this.title.textContent = title;
     this.sub.textContent = `${x.works.length} ${x.works.length === 1 ? "work" : "works"} · ${x.battles.length} ${x.battles.length === 1 ? "battle" : "battles"} · ${x.lines.length} told`;
     const body: HTMLElement[] = [el("p", "place-insp-why", x.words)],
-      keys = (rows: readonly { name: string; words: string; ref: string | null }[], label: string, cls: string) => {
+      keys = (
+        rows: readonly { name: string; words: string; ref: string | null }[],
+        label: string,
+        cls: string,
+      ) => {
         if (!rows.length) return;
         const box = el("div", "place-insp-people");
         for (const r of rows) {
@@ -700,7 +734,11 @@ export class PlaceInspector {
         }
         body.push(el("p", "place-insp-label", label), box);
       };
-    keys(x.lines.map((l) => ({ name: l.when, words: l.words, ref: l.ref })), "Told of it", "place-legend-line");
+    keys(
+      x.lines.map((l) => ({ name: l.when, words: l.words, ref: l.ref })),
+      "Told of it",
+      "place-legend-line",
+    );
     keys(x.works, "Its works", "place-legend-work");
     keys(
       x.battles.map((b) => ({ name: b.name, words: "Its men were there", ref: b.ref || null })),
@@ -715,7 +753,11 @@ export class PlaceInspector {
     const title = `${x.icon} ${x.name}`;
     if (this.title.textContent !== title) this.title.textContent = title;
     this.sub.textContent = [
-      x.water ? `water at hand: ${x.water}` : x.wells ? `${x.wells} ${x.wells === 1 ? "well" : "wells"}` : "no water at hand",
+      x.water
+        ? `water at hand: ${x.water}`
+        : x.wells
+          ? `${x.wells} ${x.wells === 1 ? "well" : "wells"}`
+          : "no water at hand",
       `${x.lodes.length} ${x.lodes.length === 1 ? "lode" : "lodes"} dug`,
     ].join(" · ");
     this.body.replaceChildren(...belowEl(x));
@@ -795,8 +837,15 @@ export class PlaceInspector {
     // (Its fields, O6: laid off its plan, who is out in them.)
     const fields = x.lot === -2;
     if ((x.lot >= 0 || fields) && x.ref.startsWith("plcl:")) {
-      const go = el("button", "place-insp-order place-insp-inside", fields ? "Out in the fields ▸" : "Inside ▸");
-      go.setAttribute("aria-label", fields ? "Look over the fields and the flock" : `Look inside ${x.name}`);
+      const go = el(
+        "button",
+        "place-insp-order place-insp-inside",
+        fields ? "Out in the fields ▸" : "Inside ▸",
+      );
+      go.setAttribute(
+        "aria-label",
+        fields ? "Look over the fields and the flock" : `Look inside ${x.name}`,
+      );
       go.onclick = () => this.onInspect(x.ref.replace(/^plcl:/, "plci:"));
       body.push(go);
     }
@@ -833,7 +882,11 @@ export class PlaceInspector {
       const row = el("div", "place-insp-orders place-insp-zones");
       for (const [zone, words, says] of [
         [null, "No zone", "no zone"],
-        ["meet", "Meeting place", "a meeting place, where those near it come for company and games"],
+        [
+          "meet",
+          "Meeting place",
+          "a meeting place, where those near it come for company and games",
+        ],
         ["clear", "Keep clear", "kept clear, gone to by no one but to a fire"],
       ] as const) {
         if (zone === "clear" && !x.clearable) continue;
@@ -854,7 +907,10 @@ export class PlaceInspector {
       body.push(down);
       // (Its legends, O9.)
       const told = el("button", "place-insp-order place-insp-legends", "Its legends ▸");
-      told.setAttribute("aria-label", "The town's legends: its works, its battles, the seldomest of what befell it");
+      told.setAttribute(
+        "aria-label",
+        "The town's legends: its works, its battles, the seldomest of what befell it",
+      );
       told.onclick = () => this.onInspect(x.ref.replace(/^plcl:(.*):\d+$/, "plcy:$1"));
       body.push(told);
       // (Its gate, P2.)
@@ -864,7 +920,10 @@ export class PlaceInspector {
       body.push(gate);
       // (Its bound, P6.)
       const bound = el("button", "place-insp-order place-insp-bound", "The bound ▸");
-      bound.setAttribute("aria-label", "The town's bound, its captives and those its justice holds");
+      bound.setAttribute(
+        "aria-label",
+        "The town's bound, its captives and those its justice holds",
+      );
       bound.onclick = () => this.onInspect(x.ref.replace(/^plcl:(.*):\d+$/, "plcd:$1"));
       body.push(bound);
       // (Its faith and rank, P7.)
@@ -876,12 +935,18 @@ export class PlaceInspector {
     if (x.zoneWords) body.push(el("p", "place-insp-why", x.zoneWords));
     // (The guard's post by your order, O7: those standing to arms keep it, watching the homes within a cry of it.)
     if (x.postable && this.orders) {
-      const b = el("button", "place-chip place-insp-post", x.post ? "🛡️ The guard's post: back to the square" : "🛡️ Post the guard here");
+      const b = el(
+        "button",
+        "place-chip place-insp-post",
+        x.post ? "🛡️ The guard's post: back to the square" : "🛡️ Post the guard here",
+      );
       b.classList.toggle("on", x.post);
       b.setAttribute("aria-pressed", String(x.post));
       b.setAttribute(
         "aria-label",
-        x.post ? "Those standing to arms stand in the square again" : `Those standing to arms stand at ${x.name}`,
+        x.post
+          ? "Those standing to arms stand in the square again"
+          : `Those standing to arms stand at ${x.name}`,
       );
       b.onclick = () => this.onOrder("place.post", { lot: x.post ? null : x.lot });
       const row = el("div", "place-insp-orders");
@@ -946,7 +1011,11 @@ export class PlaceInspector {
       );
     if (x.takes)
       body.push(
-        el("p", "place-insp-label", x.takes.store === 0 ? "What its market takes" : "What its granary takes"),
+        el(
+          "p",
+          "place-insp-label",
+          x.takes.store === 0 ? "What its market takes" : "What its granary takes",
+        ),
         takesEl(x.takes, this.onOrder, this.orders),
       );
     if (x.people.length) body.push(this.people(x.people));
@@ -1021,7 +1090,8 @@ export class PlaceInspector {
       H = 230,
       dpr = Math.min(2, globalThis.devicePixelRatio || 1),
       key = JSON.stringify([x.ref, x.ties.map((t) => [t.ref, t.regard]), x.web]);
-    this.web.title = "Whom they know: green the warmer, red the colder, the thicker the more; tap one to see them";
+    this.web.title =
+      "Whom they know: green the warmer, red the colder, the thicker the more; tap one to see them";
     this.web.setAttribute("aria-label", this.web.title);
     if (key === this.webbed) return this.web;
     this.webbed = key;
@@ -1060,7 +1130,13 @@ export class PlaceInspector {
       g.lineTo(at[k]!.x, at[k]!.y);
       g.stroke();
     });
-    const face = (p: PlaceInspectPerson["portrait"], px: number, py: number, size: number, ring: string) => {
+    const face = (
+      p: PlaceInspectPerson["portrait"],
+      px: number,
+      py: number,
+      size: number,
+      ring: string,
+    ) => {
       g.fillStyle = "rgba(14, 22, 48, 0.95)";
       g.strokeStyle = ring;
       g.lineWidth = 2;

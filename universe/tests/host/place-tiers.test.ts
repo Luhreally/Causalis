@@ -90,7 +90,11 @@ test("its notables and their households in full, the caught up and their friends
     for (let i = 0; i < p.n; i++) {
       if (longAbed.has(p.house[i]!)) {
         caught++;
-        assert.notEqual(p.tier[i]! & 3, TIER.folk, "one abed, or of their household, is not among the folk past a turn");
+        assert.notEqual(
+          p.tier[i]! & 3,
+          TIER.folk,
+          "one abed, or of their household, is not among the folk past a turn",
+        );
       }
       if ((p.tier[i]! & 3) === TIER.light) light++;
     }
@@ -99,11 +103,20 @@ test("its notables and their households in full, the caught up and their friends
     n = [0, 0, 0];
   for (let i = 0; i < p.n; i++) n[p.tier[i]! & 3]!++;
   assert.ok(n[TIER.full]! > 0 && n[TIER.folk]! > 0, `tiers ${n.join(" / ")}, light ${light}`);
-  assert.ok(caught > 0 && light > 0, `the household of one abed followed light (${caught}, ${light})`);
+  assert.ok(
+    caught > 0 && light > 0,
+    `the household of one abed followed light (${caught}, ${light})`,
+  );
   assert.ok(n[TIER.folk]! > n[TIER.full]!, `most among the folk (${n.join(" / ")})`);
   for (let i = 0; i < p.n; i++)
-    if ((p.sexOcc[i]! & 15) === OCC.leader) assert.equal(p.tier[i]! & 3, TIER.full, "one who leads it is in full");
-  if (place.healer) assert.equal(p.tier[placeIndexOf(place, place.healer)]! & 3, TIER.full, "its healer is in full");
+    if ((p.sexOcc[i]! & 15) === OCC.leader)
+      assert.equal(p.tier[i]! & 3, TIER.full, "one who leads it is in full");
+  if (place.healer)
+    assert.equal(
+      p.tier[placeIndexOf(place, place.healer)]! & 3,
+      TIER.full,
+      "its healer is in full",
+    );
   // One among the folk, followed by word: in full from the next tick, and said so at once; let go of, back at their turn.
   let at = -1;
   for (let i = 0; i < p.n && at < 0; i++) if ((p.tier[i]! & 3) === TIER.folk) at = i;
@@ -112,7 +125,11 @@ test("its notables and their households in full, the caught up and their friends
   assert.equal(inspectPerson(w, place, id)!.tier.tier, TIER.full, "said in full at once");
   w.runTo(w.now + 600);
   advancePlace(w, place);
-  assert.equal(p.tier[placeIndexOf(place, id)]! & 3, TIER.full, "followed by word: in full from the next tick");
+  assert.equal(
+    p.tier[placeIndexOf(place, id)]! & 3,
+    TIER.full,
+    "followed by word: in full from the next tick",
+  );
   const read = inspectPerson(w, place, id)!;
   assert.equal(read.tier.tier, TIER.full);
   assert.ok(read.tier.pinned && !read.tier.soft && /in full/.test(read.tier.words));

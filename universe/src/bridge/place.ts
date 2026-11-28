@@ -260,7 +260,12 @@ export type PlaceBillRow = {
 /** One of a town's stores and what it takes (N10): the store (0 its market, 1 its granary), and each good it is for. */
 export type PlaceStoreTakes = {
   readonly store: number;
-  readonly goods: readonly { readonly good: number; readonly name: string; readonly takes: boolean; readonly held: number }[];
+  readonly goods: readonly {
+    readonly good: number;
+    readonly name: string;
+    readonly takes: boolean;
+    readonly held: number;
+  }[];
 };
 /** A place's healer (N9): who, their page, what they are at, their doses of remedies in hand and wanted, the hurt abed. */
 export type PlaceHealerRow = {

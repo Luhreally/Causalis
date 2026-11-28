@@ -31,7 +31,9 @@ body.place-loading > .sound-button {
   background: linear-gradient(180deg, rgba(26, 48, 98, 0.92), rgba(10, 20, 46, 0.94));
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
   color: #e8f1ff;
-  font: 14px/1.4 system-ui, sans-serif;
+  font:
+    14px/1.4 system-ui,
+    sans-serif;
 }
 .place-load-banner {
   height: 10px;

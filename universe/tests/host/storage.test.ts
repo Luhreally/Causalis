@@ -163,7 +163,12 @@ test("a world's towns are kept apart from its save, written again only when they
     ruleset = rulesetId(w, "test");
   w.runTo(3 * YEAR);
   const base = saveWorld(w, ruleset),
-    towns = { schema: 1, data: { places: [{ town: "s:1", people: [1, 2, 3] }] }, hash: "h1", outside: true as const },
+    towns = {
+      schema: 1,
+      data: { places: [{ town: "s:1", people: [1, 2, 3] }] },
+      hash: "h1",
+      outside: true as const,
+    },
     withTowns = (doc: typeof base, chunk: typeof towns) =>
       ({ ...doc, stores: { ...doc.stores, "readings.places": chunk } }) as typeof base;
   await slots.write(withTowns(base, towns));

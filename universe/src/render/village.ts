@@ -5632,7 +5632,9 @@ export class VillageScene {
       dy = at.y,
       dz = m.z * M - at.z,
       far = Math.sqrt(dx * dx + dy * dy + dz * dz),
-      focal = ((this.stage.app.graphicsDevice.clientRect.height || 1) / 2) * e.camera!.projectionMatrix.data[5]!;
+      focal =
+        ((this.stage.app.graphicsDevice.clientRect.height || 1) / 2) *
+        e.camera!.projectionMatrix.data[5]!;
     return far > 0 && (high * M * focal) / far >= tall * 0.8;
   }
 
