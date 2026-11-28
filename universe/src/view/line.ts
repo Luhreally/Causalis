@@ -740,10 +740,13 @@ export type LessonId =
   | "seed"
   | "sow"
   | "story"
-  | "rule";
+  | "rule"
+  | "ask"
+  | "land"
+  | "settle";
 
 /** The stage a lesson is of: the guide shows the next of the stage the line is in. */
-export type LessonStage = "cell" | "body" | "band";
+export type LessonStage = "cell" | "body" | "band" | "stars";
 
 /** The guide's lessons in their order: each ticks itself off as it is done. `show` is what its Show me points at. */
 export const LESSONS: readonly {
@@ -864,6 +867,29 @@ export const LESSONS: readonly {
     words:
       "Once a realm holds your line's land: in your line's story, Its year. Choose one thing for your realm to do (build, court, fight or make peace), each with what it costs, then let the year pass and see what it came to.",
     show: ".line-name",
+  },
+  {
+    id: "ask",
+    stage: "stars",
+    title: "Choose where your ship goes",
+    words:
+      "On the map of the stars, press a star in your realm's reach, see the world a ship would come down on there, and send your realm's next ship to it. The realm still sails in its own time.",
+    show: ".line-star-map",
+  },
+  {
+    id: "land",
+    stage: "stars",
+    title: "See your people come down",
+    words:
+      "Let the years pass until your ship sails, then until it comes down: the world it lands on, and its first colony there.",
+    show: ".line-link-go",
+  },
+  {
+    id: "settle",
+    stage: "stars",
+    title: "Settle three worlds",
+    words: "Send ship after ship: each world your realm settles is your line's, at another star.",
+    show: ".line-star-map",
   },
 ];
 

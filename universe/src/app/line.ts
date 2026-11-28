@@ -20,6 +20,7 @@ import { DepthLayer, type Beyond } from "../render/line-depth.ts";
 import { CellJuice } from "../render/line-juice.ts";
 import { LineSound } from "./line-sound.ts";
 import { councilOf, yearWent, yearWords, type Council } from "./line-realm.ts";
+import { starMap } from "./line-stars.ts";
 import { drawPortrait, el } from "../ui/index.ts";
 import type { PlaceLoading } from "../ui/place-loading.ts";
 import { YEAR } from "../kernel/index.ts";
@@ -227,6 +228,8 @@ export function installLine(d: LineDeps, Loading: typeof PlaceLoading): LineFlow
     /** The realm holding the band's land at the stars, as last asked (S8). */
     storyStars: LineStars | null = null,
     storyCouncil: Council | null = null,
+    /** The star picked on the map of its stars (null: none). */
+    pickedStar: string | null = null,
     /** A land the look tools point the story at (none: the band's, or the cradle). */
     storyCell: number | undefined;
   const noises = new LineSound(d.sound);
@@ -898,6 +901,9 @@ export function installLine(d: LineDeps, Loading: typeof PlaceLoading): LineFlow
         )
       : null;
     layer(null);
+    // (At the stars, the guide's lessons are its: choose where a ship goes, see it come down, settle worlds.)
+    if (at === "story:stars" && storyStars?.realm && !storyStars.wants.length)
+      guide.stage = "stars";
     openPage(at);
   };
   /** Out of the mode to the god game's own page of a thing of the world: its village, town or realm. */
@@ -914,6 +920,7 @@ export function installLine(d: LineDeps, Loading: typeof PlaceLoading): LineFlow
       const r = await d.client
         .command("space.ask", { realm, star })
         .catch((e: unknown) => ({ ok: false, error: String(e) }));
+      if ((r as { ok?: boolean }).ok !== false && star) guide.did("ask");
       hud.say(
         (r as { ok?: boolean }).ok === false
           ? `It was turned back: ${(r as { error?: string }).error ?? ""}`
@@ -927,6 +934,160 @@ export function installLine(d: LineDeps, Loading: typeof PlaceLoading): LineFlow
   };
 
   /** The realm's year (C1): a council's choice made by its own command, or the year let pass and what it came to told. */
+  // —— Its stars played: the map, a star picked, the years let pass until a ship sails or comes down ————————————————
+  /** A world a ship comes down on, drawn as the god game's pages draw one. */
+  const worldPicture = (portrait: NonNullable<LineStars["stars"][number]["lands"]>["portrait"]) => {
+    const c = document.createElement("canvas");
+    c.className = "line-landing-pic";
+    drawPortrait(c, portrait, 72, 72, 0);
+    return c;
+  };
+  const space = {
+    map: (st: LineStars) => {
+      const box = el("div", "line-star-box");
+      box.append(
+        starMap(st, pickedStar, (ref) => {
+          pickedStar = ref;
+          noises.play("pop");
+          openPage("story:stars");
+        }),
+      );
+      return box;
+    },
+    get picked() {
+      return pickedStar;
+    },
+    landing: (st: LineStars, star: string) => {
+      const lands = st.stars.find((x) => x.ref === star)?.lands;
+      if (!lands) return null;
+      const box = el("div", "line-landing");
+      box.append(
+        worldPicture(lands.portrait),
+        el("span", "", `Where a ship would come down: ${lands.words}`),
+      );
+      return box;
+    },
+    run: (text: string, until: "sails" | "lands") => {
+      const b = el("button", "line-link line-link-go", text);
+      b.onclick = () => void runUntil(until);
+      return b;
+    },
+  };
+  let running = false,
+    stopRun = false;
+  /** The years let pass, a year at a time, until the realm's next ship sails, or one under way comes down (or Stop). */
+  const runUntil = async (until: "sails" | "lands") => {
+    const before = storyStars;
+    if (running || !before?.realm || !saga) return;
+    running = true;
+    stopRun = false;
+    await keepBeforeRule();
+    const sailed = new Set(before.ships.map((s) => s.land)),
+      landed = new Set(before.ships.filter((s) => s.arrived).map((s) => s.land)),
+      soonest = Math.min(...before.ships.filter((s) => !s.arrived).map((s) => s.arrives)),
+      most =
+        until === "lands" && Number.isFinite(soonest)
+          ? Math.max(1, soonest - before.year + 1)
+          : 150,
+      cell = storyCell ?? saga.tribe?.cell ?? bandLand?.cell,
+      args = cell === undefined ? {} : { cell },
+      progress = card(
+        "Years pass…",
+        [
+          until === "sails"
+            ? "Your realm readies its ship."
+            : "Your ship crosses between the stars.",
+        ],
+        [key("Stop", () => (stopRun = true), true)],
+        "help:stars",
+      ),
+      line = progress.querySelector("p")!;
+    layer(progress);
+    let met: LineStars["ships"][number] | undefined,
+      years = 0;
+    try {
+      while (years < most && !stopRun && !met) {
+        await d.client.advance((d.client.status?.t ?? 0) + YEAR);
+        years++;
+        const st = await d.client.query<LineStars | null>({ type: "line.stars", args });
+        if (!st?.realm) break;
+        storyStars = st;
+        line.textContent = `The year ${st.year}: ${years} ${years === 1 ? "year" : "years"} passed. ${until === "sails" ? "Your realm readies its ship." : "Your ship crosses between the stars."}`;
+        met =
+          until === "sails"
+            ? st.ships.find((s) => !sailed.has(s.land))
+            : st.ships.find((s) => s.arrived && !landed.has(s.land));
+      }
+    } finally {
+      running = false;
+    }
+    const st = storyStars!;
+    if (!met) {
+      await openStory("story:stars");
+      hud.say(
+        stopRun
+          ? `Stopped, ${years} ${years === 1 ? "year" : "years"} on.`
+          : `${years} years on, ${until === "sails" ? "no ship has sailed yet" : "no ship has come down yet"}.`,
+        false,
+      );
+      return;
+    }
+    const shown = met.lands ? worldPicture(met.lands.portrait) : null;
+    if (until === "sails") {
+      noises.play("grow");
+      layer(
+        payoff(
+          `${st.realm?.name ?? "Your realm"} sends a ship`,
+          shown,
+          [
+            ["Bound for", met.words],
+            ["Comes down on", met.lands?.words ?? "a world its people could live on"],
+            ["Arrives", `in the year ${met.arrives}`],
+            ["Aboard", `${met.people.toLocaleString("en")} people`],
+          ],
+          [
+            met.asked
+              ? "It sails for the star you chose."
+              : "Your star was taken first: it sails where your realm chose.",
+          ],
+          [
+            key("Its stars", () => void openStory("story:stars"), true),
+            key("⏭ Until it comes down", () => void runUntil("lands")),
+          ],
+          "help:stars",
+        ),
+      );
+      return;
+    }
+    // (Come down: a world settled, its first colony founded. The stage's payoff, a world at a time.)
+    const settled = st.ships.filter((s) => s.arrived).length,
+      land = met.land;
+    guide.did("land");
+    if (settled >= 3) guide.did("settle");
+    noises.play("rise");
+    layer(
+      payoff(
+        "A world settled",
+        shown,
+        [
+          ["Its star", met.words],
+          ["Its world", met.lands?.words ?? "a world its people could live on"],
+          ["Under way", `${met.arrives - met.departed} years, from the year ${met.departed}`],
+          ["Its people there", met.people.toLocaleString("en")],
+          ["Your line", `at ${settled} ${settled === 1 ? "star" : "stars"} besides home`],
+        ],
+        [
+          "Your line's people come down, and their first colony there is founded. Its land is your realm's, as any land of it is.",
+        ],
+        [
+          key("Its stars", () => void openStory("story:stars"), true),
+          key("🔭 Go and see it", () => void flow.wake().then(() => d.open(land))),
+        ],
+        "help:stars",
+      ),
+    );
+  };
+
   let ruling = false;
   const ruleKey = (text: string, choice: number | "pass", can: boolean) => {
     const b = el("button", choice === "pass" ? "line-link line-link-go" : "line-link", text);
@@ -960,6 +1121,7 @@ export function installLine(d: LineDeps, Loading: typeof PlaceLoading): LineFlow
       )
       .catch(() => undefined);
     saga.realm = { year: -1, said: null, last: [], ...saga.realm, kept: true };
+    hud.say("Your world as it was is kept in your saves.", true);
   };
   const decide = async (i: number) => {
     const ch = storyCouncil?.choices[i];
@@ -1418,7 +1580,7 @@ export function installLine(d: LineDeps, Loading: typeof PlaceLoading): LineFlow
       s = saga,
       L = (text: string, r: string) => pages.link(text, r);
     const told = ref.startsWith("story:")
-      ? storyPage(ref, storyNow(), L, goSee, sendShip, ruleKey)
+      ? storyPage(ref, storyNow(), L, goSee, sendShip, ruleKey, space)
       : null;
     if (told) return told;
     if (ref === "cell" && t && f && s) {
@@ -2422,6 +2584,14 @@ const HELP: Readonly<Record<string, readonly [string, readonly string[]]>> = {
       "These are the god game's own acts of a ruler, given in its ruler's name: your world changes, as teaching your land to sow does. It is kept in your saves first, as it was before your realm's first year.",
     ],
   ],
+  "help:stars": [
+    "Your realm at the stars",
+    [
+      "Once your line's realm has a station, habitats, a drive and machines to spare, it sends ships to the stars, by its own rule, when it can. The map shows home in the middle, the stars in its reach (grey: taken by another), the worlds it has settled (green), and its ships along their crossings.",
+      "Press a star to pick it: the world a ship would come down on there, as the voyage itself chooses it, and how long the crossing takes. Send our next ship here asks the realm to sail there next; if another takes the star first, it sails where it would have.",
+      "Let the years pass until it sails, and until it comes down: the world it lands on, and its first colony. Each world settled is your line's.",
+    ],
+  ],
   "help:young": [
     "How your young differ",
     [
@@ -2451,4 +2621,5 @@ const HELP_LINKS: readonly (readonly [string, string])[] = [
   ["help:band", "Leading a band"],
   ["help:story", "Your line's story"],
   ["help:year", "Your realm's year"],
+  ["help:stars", "Your realm at the stars"],
 ];

@@ -590,6 +590,89 @@ body.lining > *:not(#app) {
 .line-council.cannot .line-council-cost {
   color: #b9c2d8;
 }
+/* (Its stars as a map: home in the middle, its reach, its ships; a star pressed is picked.) */
+.line-star-box {
+  margin: 4px 0 8px;
+  border-radius: 10px;
+  background: radial-gradient(circle at 50% 50%, #142a55 0%, #070d22 75%);
+  overflow: hidden;
+}
+.line-star-map {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 300px;
+}
+.line-star-ring {
+  fill: none;
+  stroke: rgba(158, 231, 255, 0.12);
+  stroke-width: 1;
+}
+.line-star-ly {
+  fill: rgba(158, 231, 255, 0.45);
+  font-size: 9px;
+}
+.line-star-home {
+  fill: #f2c14e;
+}
+.line-star-label {
+  fill: #f2c14e;
+  font-size: 11px;
+  text-anchor: middle;
+}
+.line-star-dot {
+  fill: #e8f2ff;
+}
+.line-star-dot.taken {
+  fill: #6f7896;
+}
+.line-star-dot.settled {
+  fill: #8de07a;
+}
+.line-star-asked {
+  fill: none;
+  stroke: #f2c14e;
+  stroke-width: 2;
+}
+.line-star-picked {
+  fill: none;
+  stroke: #ffffff;
+  stroke-width: 1.5;
+  stroke-dasharray: 3 3;
+}
+.line-star-hit {
+  fill: transparent;
+  cursor: pointer;
+}
+.line-star-way {
+  stroke: #9ee7ff;
+  stroke-width: 1.2;
+  stroke-dasharray: 4 4;
+}
+.line-star-way.come {
+  stroke: #8de07a;
+  stroke-dasharray: none;
+}
+.line-star-ship {
+  fill: #ffffff;
+  stroke: #9ee7ff;
+  stroke-width: 2;
+}
+.line-landing {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 2px 0 6px;
+}
+.line-landing-pic {
+  width: 72px;
+  height: 72px;
+  flex: none;
+}
+.line-payoff > .line-landing-pic {
+  display: block;
+  margin: 0 auto 4px;
+}
 /* (A name for the people the line may become: the field a finger's height, the full width of the card.) */
 .line-name {
   display: flex;
