@@ -13,6 +13,7 @@ import type {
   PlaceInspectBelow,
   PlaceInspectBound,
   PlaceInspectFaith,
+  PlaceInspectDead,
   PlaceInspectFamily,
   PlaceInspectGate,
   PlaceInspectLegends,
@@ -260,6 +261,7 @@ export class PlaceInspector {
     else if (x.kind === "family") this.family(x);
     else if (x.kind === "bound") this.bound(x);
     else if (x.kind === "faith") this.faith(x);
+    else if (x.kind === "dead") this.dead(x);
     else this.lot(x);
   }
 
@@ -502,6 +504,11 @@ export class PlaceInspector {
     } else if (this.tab === "gear") {
       body.push(this.facts(x.gear));
     } else if (this.tab === "life") {
+      // (Their nearest kin a tap away, living or of the town's dead kept so: R1.)
+      if (x.kin.length) {
+        body.push(el("h3", "place-insp-sub", "Their nearest kin"));
+        body.push(this.kinRows(x.kin));
+      }
       if (!x.life.length)
         body.push(
           el("p", "place-insp-why", "Nothing has befallen them since the town was entered."),
@@ -672,6 +679,41 @@ export class PlaceInspector {
     rows("Brothers and sisters", x.siblings);
     rows("Children", x.children);
     rows("Grandchildren", x.grandchildren);
+    this.body.replaceChildren(...body);
+  }
+  /** Kin or those known, each a key to their page where they have one (the living's, or one of the dead kept so). */
+  private kinRows(
+    list: readonly { name: string; ref: string | null; words: string }[],
+  ): HTMLElement {
+    const box = el("div", "place-insp-people place-insp-kin");
+    for (const r of list) {
+      const b = el(r.ref ? "button" : "div", "place-insp-person place-family-row");
+      b.append(el("span", "place-row-name", r.name), el("span", "place-row-what", r.words));
+      if (r.ref) (b as HTMLButtonElement).onclick = () => this.onInspect(r.ref!);
+      box.append(b);
+    }
+    return box;
+  }
+  /** One of the town's dead (R1): what took them, their life in short, their kin and those they knew, their last memories. */
+  private dead(x: PlaceInspectDead): void {
+    this.picture(x);
+    const title = `${x.icon} ${x.name}`;
+    if (this.title.textContent !== title) this.title.textContent = title;
+    if (this.sub.textContent !== x.sub) this.sub.textContent = x.sub;
+    const body: HTMLElement[] = [el("p", "place-insp-why place-insp-death", x.death)],
+      life = el("ul", "place-insp-life");
+    for (const line of x.life) life.append(el("li", "", line));
+    body.push(life);
+    if (x.kin.length) body.push(el("p", "place-insp-label", "Their kin"), this.kinRows(x.kin));
+    if (x.knew.length)
+      body.push(el("p", "place-insp-label", "Those they knew"), this.kinRows(x.knew));
+    if (x.memories.length) {
+      body.push(el("p", "place-insp-label", "What they carried in mind at the end"));
+      const list = el("ul", "place-insp-life place-insp-memories");
+      for (const m of x.memories)
+        list.append(el("li", "", `${m.icon} ${m.words} (${m.size > 0 ? "+" : ""}${m.size})`));
+      body.push(list);
+    } else body.push(el("p", "place-insp-why", "No memory weighed on them at the end."));
     this.body.replaceChildren(...body);
   }
   /** A town's gate (P2): who came and who comes, each a key to what sent them; its order, shut to newcomers or open. */

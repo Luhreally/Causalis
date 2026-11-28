@@ -120,6 +120,8 @@ if (argv[0] === "--child") {
           )
         : [],
       digest: place.placeDigest(p),
+      // (Its digest with its dead remembered left out (R1): what its people did, whatever was kept of those who died.)
+      bare: place.placeDigest({ ...p, mourned: undefined }),
       log: createHash("sha1").update(JSON.stringify(p.log)).digest("hex").slice(0, 16),
       lines: p.log.length,
       // (What befell it, kind by kind, and what its place came to: --tell says them.)
@@ -165,6 +167,7 @@ type Run = {
   warm: number | null;
   daily: number[];
   digest: string;
+  bare: string;
   log: string;
   lines: number;
   happened: Record<string, number>;
@@ -266,18 +269,26 @@ for (let k = 0; k < runs; k++)
             .join(", ")}
 `
         : "") +
-        `${root}: town of ${r.town}, kept ${r.kept} (${mode}); entered in ${r.enter.toFixed(0)} ms; first day's worst hour ${r.worst.toFixed(0)} ms; cold ${said(r.cold)} ms, warm ${said(r.warm)} ms a tick; days ${r.daily.map((x) => x.toFixed(2)).join(" ")}; after ${days} days digest ${r.digest}, log ${r.log} (${r.lines} lines)`,
+        `${root}: town of ${r.town}, kept ${r.kept} (${mode}); entered in ${r.enter.toFixed(0)} ms; first day's worst hour ${r.worst.toFixed(0)} ms; cold ${said(r.cold)} ms, warm ${said(r.warm)} ms a tick; days ${r.daily.map((x) => x.toFixed(2)).join(" ")}; after ${days} days digest ${r.digest} (without its dead remembered ${r.bare}), log ${r.log} (${r.lines} lines)`,
     );
   }
 if (b) {
   const ra = results.get(a)!,
     rb = results.get(b)!,
     same = [...ra, ...rb].every((r) => r.digest === ra[0]!.digest && r.log === ra[0]!.log),
+    // (Alike but for its dead remembered: what was done the same, only what was kept of those who died added.)
+    bare = [...ra, ...rb].every((r) => r.bare === ra[0]!.bare && r.log === ra[0]!.log),
     mean = (list: Run[], key: "cold" | "warm") =>
       list.reduce((s, r) => s + (r[key] ?? 0), 0) / list.length;
   console.log(
     `a: cold ${mean(ra, "cold").toFixed(3)}, warm ${mean(ra, "warm").toFixed(3)} ms; b: cold ${mean(rb, "cold").toFixed(3)}, warm ${mean(rb, "warm").toFixed(3)} ms (means of ${runs})`,
   );
-  console.log(same ? "the same: digests and logs alike" : "NOT the same");
-  process.exit(same ? 0 : 1);
+  console.log(
+    same
+      ? "the same: digests and logs alike"
+      : bare
+        ? "the same but for its dead remembered: digests with them left out alike, and logs alike"
+        : "NOT the same",
+  );
+  process.exit(same || bare ? 0 : 1);
 }

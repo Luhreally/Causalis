@@ -62,7 +62,7 @@ import { placeFields, placeInside } from "./placeinside.ts";
 import { placeBelow } from "./placebelow.ts";
 import { placeLegends, placeWork, workName } from "./placelegends.ts";
 import { placeGate } from "./placevisitors.ts";
-import { placeFamily } from "./placefamily.ts";
+import { placeDead, placeFamily, placeKin } from "./placefamily.ts";
 import { bondWords, placeBound } from "./placebound.ts";
 import { placeFaith } from "./placefaith.ts";
 import {
@@ -179,7 +179,7 @@ const THOUGHT_WORDS: Readonly<Record<number, readonly [string, string]>> = {
   [MOOD.homeless]: ["🏚️", "Their home lost"],
 };
 /** What each kind of memory is, said short, with its sign (host/place.ts THOUGHT). */
-const MEMORY_WORDS: Readonly<Record<number, readonly [string, string]>> = {
+export const MEMORY_WORDS: Readonly<Record<number, readonly [string, string]>> = {
   [THOUGHT.born]: ["👶", "A child born to the household"],
   [THOUGHT.paired]: ["💞", "Paired"],
   [THOUGHT.friendDied]: ["🕯️", "Their friend died"],
@@ -543,6 +543,7 @@ export function inspectPerson(world: World, place: Place, id: number): PlaceInsp
     ref: placePersonRef(place.town, id),
     page: me.ref,
     familyRef: placeFamilyRef(place.town, id),
+    kin: placeKin(world, place, i),
     name: me.name,
     portrait: {
       kind: "person",
@@ -1168,7 +1169,9 @@ export function placeInspect(world: World, town: string, ref: string): PlaceInsp
     for (let i = 0; i < place.people.n && id === null; i++)
       if (who(i).ref === ref) id = place.people.id[i]!;
   }
-  return id === null ? null : inspectPerson(world, place, id);
+  if (id === null) return null;
+  // (One of its dead kept for their page (R1): that page, where none of the living is theirs.)
+  return inspectPerson(world, place, id) ?? placeDead(world, place, id);
 }
 
 /** `place.inspect`: { ref: the town, of: what is inspected (a person's or a lot's ref) }. */

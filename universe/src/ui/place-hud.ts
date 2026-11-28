@@ -1512,6 +1512,7 @@ export class PlaceHud {
       for (const x of group) {
         const b = el("button", "place-link", x.name),
           ref = x.ref!;
+        b.dataset.ref = ref;
         b.onclick = () => this.onOpen(ref);
         names.append(b);
         if (group.length === 1) names.append(el("span", "place-log-told", ` ${x.told}`));
