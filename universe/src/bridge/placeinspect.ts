@@ -62,6 +62,8 @@ export type PlaceInspectPerson = {
   /** Their trade, in a word ("farmer", "child"), and the trade an order holds them to (null: none). */
   readonly trade: string;
   readonly bound: string | null;
+  /** Drafted by your word (R9): where they were told to stand (-9: with the rest under arms), or null. */
+  readonly drafted: number | null;
   /** What they are at now, and why, in a line each. */
   readonly now: string;
   readonly why: string;
@@ -735,7 +737,60 @@ export type PlaceInspectWhy = {
   readonly day: number;
 };
 
+/** A level of the town's ground (R8): its name and depth, its stuff, what is dug there, whether its land's means reach it. */
+export type PlaceLevel = {
+  readonly name: string;
+  readonly depth: string;
+  readonly stuff: string;
+  readonly dug: readonly {
+    readonly icon: string;
+    readonly words: string;
+    /** Where it is: one of the town's lots, or its workings (the town's mine, as its plan places it); else neither. */
+    readonly lot: number | null;
+    readonly works: boolean;
+    readonly state: "dug" | "digging" | "out" | "none";
+  }[];
+  readonly reached: boolean;
+};
+/** The town's ground, level by level (R8), as Dwarf Fortress's levels have it. */
+export type PlaceInspectLevels = {
+  readonly kind: "levels";
+  readonly ref: string;
+  readonly belowRef: string;
+  readonly name: string;
+  readonly icon: string;
+  readonly sub: string;
+  readonly levels: readonly PlaceLevel[];
+  /** How deep its land's means reach, said ("picks", "engines"). */
+  readonly reach: string;
+  readonly words: string;
+};
+
+/** A town's beasts and power (R9): who keeps its flock and how well trained; what pulls and carries; what drives its works. */
+export type PlaceInspectBeasts = {
+  readonly kind: "beasts";
+  readonly ref: string;
+  readonly name: string;
+  readonly icon: string;
+  readonly sub: string;
+  readonly keepers: readonly {
+    readonly name: string;
+    readonly ref: string;
+    readonly hours: number;
+    readonly words: string;
+  }[];
+  readonly more: number;
+  readonly carry: readonly string[];
+  readonly power: readonly {
+    readonly rung: string;
+    readonly on: boolean;
+    readonly words: string;
+  }[];
+};
+
 export type PlaceInspect =
+  | PlaceInspectBeasts
+  | PlaceInspectLevels
   | PlaceInspectWhy
   | PlaceInspectWhatNow
   | PlaceInspectHelp

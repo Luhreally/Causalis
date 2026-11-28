@@ -276,6 +276,21 @@ export const HELP: Readonly<Record<string, Help>> = {
     ],
     can: ["Tap a step to open its page.", "🎯 or 📍: send the eye to the person or the place."],
   },
+  "page:levels": {
+    title: "The ground, level by level",
+    what: "The ground under the town from the soil down: its graves and wells, the water, then each depth its mines are dug to.",
+    numbers: [["Shaded", "A level deeper than this land can dig yet."]],
+    can: ["▲ and ▼: go up or down a level.", "📍: send the eye to where something is dug."],
+  },
+  "page:beasts": {
+    title: "Beasts and power",
+    what: "The town's herds and the wild beasts it could keep, who keeps them and how well, what pulls and carries for it, and what drives its work.",
+    numbers: [["Trained", "How well a keeper knows the herds, from their hours with them."]],
+    can: [
+      "Open a keeper's page.",
+      "See which kinds of power this land knows, and which it does not yet.",
+    ],
+  },
 };
 
 /** The topic for what a sheet, a tab or a page is (G2): its own, else the town's. */

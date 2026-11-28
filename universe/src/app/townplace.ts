@@ -499,7 +499,7 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
     stopInspect = null;
     if (
       ref &&
-      !/^(plc|plcl|plci|plcg|plcb|plcw|plcy|plca|plcf|plcc|plcm|plcs|plcv|plch|plcn|plcq|plcd|plcr|folk|person):/.test(
+      !/^(plc|plcl|plci|plcg|plcb|plcw|plcy|plca|plcf|plcc|plcm|plcs|plcv|plch|plcn|plcq|plcz|plcx|plcd|plcr|folk|person):/.test(
         ref,
       )
     ) {
@@ -536,7 +536,7 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
       return;
     }
     const id = placedId(ref);
-    if (/^plc[ligbwyafcmsvhnqdr]:/.test(ref)) choose(null);
+    if (/^plc[ligbwyafcmsvhnqzxdr]:/.test(ref)) choose(null);
     else if (id !== null) choose(id);
     // (A sheet open under it is kept where the inspector is only peeked; a taller one takes the sheet's place.)
     if (inspector.height !== "peek" && hud.tab) hud.open(null);
@@ -1010,9 +1010,15 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
   inspector.onHelp = help;
   hud.onAlert = (n) => alerted(n);
   // (Go to, R7: the eye to one of its people where they are drawn, or to a lot.)
-  const goTo = (g: { id: number | null; lot: number | null }): void => {
+  const goTo = (g: {
+    id: number | null;
+    lot: number | null;
+    at?: { x: number; z: number };
+  }): void => {
     const at =
-      (g.id !== null ? personPoint(g.id) : null) ?? (g.lot !== null ? lotPoint(g.lot) : null);
+      g.at ??
+      (g.id !== null ? personPoint(g.id) : null) ??
+      (g.lot !== null ? lotPoint(g.lot) : null);
     if (at) lookAt(at);
   };
   hud.onGo = goTo;
@@ -1067,6 +1073,7 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
   inspector.onAhead = () => goAhead();
   inspector.onInspect = (ref) => inspect(ref);
   inspector.plan = d.plan;
+  inspector.lotAt = (lot) => lotPoint(lot);
   inspector.onPage = (ref) => void d.pages.open(ref);
   inspector.onFollow = (on) => follow(on);
   inspector.onGo = goTo;

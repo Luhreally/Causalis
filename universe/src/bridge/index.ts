@@ -601,6 +601,8 @@ export {
   PLACE_AT,
   placeLotRef,
   placeBelowRef,
+  placeLevelsRef,
+  placeBeastsRef,
   placeInsideRef,
   placeLegendsRef,
   placeGateRef,
@@ -640,6 +642,9 @@ export {
 export type {
   PlaceInspect,
   PlaceInspectBelow,
+  PlaceInspectLevels,
+  PlaceInspectBeasts,
+  PlaceLevel,
   PlaceInspectLegends,
   PlaceInspectGate,
   PlaceInspectCivic,

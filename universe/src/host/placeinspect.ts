@@ -71,6 +71,8 @@ import { placeBody } from "./placebody.ts";
 import { placeMaking } from "./placemaking.ts";
 import { placeCivic } from "./placecivic.ts";
 import { placeWhy } from "./placewhy.ts";
+import { placeLevels } from "./placelevels.ts";
+import { placeBeasts } from "./placebeasts.ts";
 import { placeHelp } from "./placehelp.ts";
 import { placeWhatNow } from "./placewhatnow.ts";
 import { placeInventory } from "./placeinventory.ts";
@@ -581,6 +583,11 @@ export function inspectPerson(world: World, place: Place, id: number): PlaceInsp
             : p.bound[i]
               ? tradeWords(p.bound[i]! - 1, false).replace(/^an? /, "")
               : null,
+    drafted: (() => {
+      const d = ordersOf(world, place.town)?.drafted;
+      if (d) for (let k = 0; k + 1 < d.length; k += 2) if (d[k] === id) return d[k + 1]!;
+      return null;
+    })(),
     now: doing,
     why: whyWords(world, place, i),
     at: r.at,
@@ -1148,6 +1155,8 @@ export function placeInspect(world: World, town: string, ref: string): PlaceInsp
   const place = enterPlace(world, town);
   if (!place) return null;
   if (ref.startsWith("plcb:")) return placeBelow(world, place);
+  if (ref.startsWith("plcz:")) return placeLevels(world, place);
+  if (ref.startsWith("plcx:")) return placeBeasts(world, place);
   if (ref.startsWith("plcy:")) return placeLegends(world, place);
   if (ref.startsWith("plca:")) return placeGate(world, place);
   if (ref.startsWith("plcd:")) return placeBound(world, place);

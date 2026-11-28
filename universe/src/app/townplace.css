@@ -2284,3 +2284,67 @@ body.placing:has(.page-window:not([hidden])) .place-tag {
   flex: 0 0 auto;
   font-size: 18px;
 }
+
+/* The town's ground, level by level (R8): its stepper, the level from above, what is dug there. */
+.place-hud .place-levels-step {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.place-hud .place-levels-up,
+.place-hud .place-levels-down {
+  min-width: 44px;
+  min-height: 44px;
+  font-size: 16px;
+}
+.place-levels-label {
+  flex: 1 1 auto;
+  text-align: center;
+  font-weight: 600;
+}
+.place-levels-ghost {
+  fill: rgba(255, 255, 255, 0.28);
+}
+.place-levels-unreached {
+  fill: rgba(0, 0, 0, 0.45);
+}
+.place-levels-gallery {
+  stroke: #e8d6a8;
+  stroke-width: 3;
+  stroke-linecap: round;
+}
+.place-levels-gallery.digging {
+  stroke: #ffd36b;
+}
+.place-levels-gallery.out {
+  stroke: #8d8470;
+  stroke-dasharray: 3 3;
+}
+.place-hud .place-levels-dug {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.place-hud .place-levels-row {
+  display: grid;
+  grid-template-columns: 1.6em 1fr auto;
+  align-items: center;
+  column-gap: 6px;
+  min-height: 44px;
+}
+
+/* A town's beasts and power (R9): the rungs of what drives its works, those its land knows lit. */
+.place-hud .place-insp-power {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.place-hud .place-insp-rung {
+  display: grid;
+  grid-template-columns: 8em 1fr;
+  column-gap: 6px;
+  opacity: 0.6;
+}
+.place-hud .place-insp-rung.on {
+  opacity: 1;
+}
