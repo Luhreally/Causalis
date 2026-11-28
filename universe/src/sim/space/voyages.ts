@@ -209,14 +209,24 @@ export function voyageTarget(
     livable = livableAt(ctx);
   // (Asked by a hand for a star, Live a Line's space, asks.ts: that star, if within its longest crossing and holding a world
   // its people could live on that no one has taken, the least to keep of them. Else the voyage as it would have been.)
+  // (By the lanes too, where the law holds and this people has found them, and that is the quicker or the only way there.)
   const asked = askedStar(ctx.world, p.ref);
   if (asked && !taken.has(asked)) {
     const star = clusterOf(ctx.world).find((s) => s.ref === asked),
-      years = star ? crossingYears(star.distance, drive) : Infinity;
-    if (star && years <= longest) {
+      years = star ? crossingYears(star.distance, drive) : Infinity,
+      route = star ? lanesTo(ctx, k, asked, machines) : null,
+      byLanes = route ? routeYears(route, cruise(drive)) : Infinity;
+    if (star && (years <= longest || route)) {
       let pick: { planet: Target["planet"]; upkeep: number } | null = null;
       for (const w of livable.get(star.ref) ?? []) if (!pick || w.upkeep < pick.upkeep) pick = w;
-      if (pick) return { drive, target: { star, planet: pick.planet, years, upkeep: pick.upkeep } };
+      if (pick)
+        return {
+          drive,
+          target:
+            route && (byLanes < years || years > longest)
+              ? { star, planet: pick.planet, years: byLanes, upkeep: pick.upkeep, route }
+              : { star, planet: pick.planet, years, upkeep: pick.upkeep },
+        };
     }
   }
   let best: Target | null = null,
@@ -252,6 +262,20 @@ export function voyageTarget(
     }
   }
   return best ? { drive, target: best } : null;
+}
+
+/** The way by lanes from home to a star, where the law holds, this people has found them and it has the machines for it. */
+function lanesTo(
+  ctx: PopulationContext,
+  k: (id: string) => boolean,
+  star: string,
+  machines: number,
+): LaneRoute | null {
+  if (!laneLawOf(ctx.world).open || !k(LANE_ROW)) return null;
+  const route = laneRoute(ctx.world, ctx.generated.star.ref as string, star);
+  return route && machines * COLONY_SHARE >= STARSHIP_MACHINES + routeMachines(route)
+    ? route
+    : null;
 }
 
 /** Whether another's ship or colony has a star already. */
@@ -300,9 +324,22 @@ export function voyageReach(
     let upkeep = Infinity;
     for (const w of livable.get(star.ref) ?? []) upkeep = Math.min(upkeep, w.upkeep);
     if (upkeep < Infinity) stars.push({ star, years, upkeep, taken: taken.has(star.ref) });
-    if (stars.length >= most) break;
   }
-  return { wants, stars };
+  // (And by the lanes, as its voyage weighs them: quicker there, or the only way.)
+  const machines = machinesOfRealm(ctx, p),
+    v = cruise(drive);
+  for (const w of livableWorlds(ctx)) {
+    const route = lanesTo(ctx, k, w.star.ref, machines);
+    if (!route) continue;
+    const years = routeYears(route, v),
+      had = stars.findIndex((x) => x.star.ref === w.star.ref);
+    if (had < 0)
+      stars.push({ star: w.star, years, upkeep: w.upkeep, taken: taken.has(w.star.ref) });
+    else if (years < stars[had]!.years)
+      stars[had] = { ...stars[had]!, years, upkeep: Math.min(w.upkeep, stars[had]!.upkeep) };
+  }
+  stars.sort((a, b) => a.years - b.years || (a.star.ref < b.star.ref ? -1 : 1));
+  return { wants, stars: stars.slice(0, most) };
 }
 
 /** The year's voyages: ships that arrive, and ships that sail. */
