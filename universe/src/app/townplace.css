@@ -2209,3 +2209,78 @@ body.placing:has(.page-window:not([hidden])) .place-tag {
 .place-help-what {
   font-size: 14px;
 }
+
+/* What now? (G3): each thing worth doing a row, its keys under it. */
+.place-hud .place-tips {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.place-hud .place-tip {
+  border-top: 1px dotted rgba(190, 205, 255, 0.3);
+  padding-top: 4px;
+}
+.place-tip-words {
+  margin: 0;
+  font-weight: 600;
+}
+.place-hud .place-tip-keys {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.place-hud .place-tip-keys button,
+.place-hud .place-guide-now {
+  padding: 0 10px;
+}
+
+/* The welcome the first time in a town (G4): above the ways to play it, Skip at its end. */
+.place-welcome {
+  flex: 0 0 calc(100% - 12px);
+  margin: 4px 6px 2px;
+  font-size: 13px;
+  line-height: 1.35;
+}
+.place-welcome[hidden],
+.place-modes-words[hidden] {
+  display: none;
+}
+.place-welcome-leave {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted, #a9bbe2);
+}
+.place-hud .place-welcome-skip {
+  display: block;
+  margin: 4px 0 0 auto;
+  padding: 0 14px;
+}
+
+/* Why one does what they do (R7): each step a row, its words a link where it opens a page, a Go to key at its end. */
+.place-hud .place-insp-whys {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.place-hud .place-insp-whystep {
+  display: grid;
+  grid-template-columns: 6.5em 1fr auto;
+  align-items: center;
+  column-gap: 6px;
+  min-height: 44px;
+}
+.place-hud .place-insp-whywords {
+  text-align: left;
+  min-height: 44px;
+}
+.place-hud .place-insp-go,
+.place-hud .place-log-go {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 6px;
+  font-size: 15px;
+}
+.place-hud .place-watch-why {
+  flex: 0 0 auto;
+  font-size: 18px;
+}

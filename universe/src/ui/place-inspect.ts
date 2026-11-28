@@ -16,7 +16,9 @@ import type {
   PlaceInspectBody,
   PlaceInspectMaking,
   PlaceInspectCivic,
+  PlaceInspectWhy,
   PlaceInspectHelp,
+  PlaceInspectWhatNow,
   PlaceInspectCharacter,
   PlaceInspectDead,
   PlaceInspectFamily,
@@ -111,8 +113,14 @@ export class PlaceInspector {
   /** The god game's full page of it. */
   onPage: (ref: string) => void = () => {};
   onFollow: (on: boolean) => void = () => {};
+  /** The eye sent to one of its people or a lot (R7). */
+  onGo: (g: { id: number | null; lot: number | null }) => void = () => {};
   /** What a page or tab is, asked (G2): its topic. */
   onHelp: (topic: string) => void = () => {};
+  /** The eye sent to one of the town or a lot (G3's Go to). */
+  onGoFor: (g: { id: number | null; lot: number | null }) => void = () => {};
+  /** One of the town's sheets opened (G3). */
+  onSheet: (tab: string) => void = () => {};
   /** One of a person's tabs opened (G1's lessons). */
   onTabbed: (tab: string) => void = () => {};
   onOrder: (type: string, args: Record<string, unknown>) => void = () => {};
@@ -286,7 +294,9 @@ export class PlaceInspector {
     else if (x.kind === "body") this.bodyPage(x);
     else if (x.kind === "making") this.making(x);
     else if (x.kind === "civic") this.civic(x);
+    else if (x.kind === "why") this.whyPage(x);
     else if (x.kind === "help") this.help(x);
+    else if (x.kind === "whatnow") this.whatNow(x);
     else this.lot(x);
   }
 
@@ -374,7 +384,11 @@ export class PlaceInspector {
     const bodyKey = el("button", "place-insp-bodykey", "Body ▸");
     bodyKey.setAttribute("aria-label", `${x.name}'s body, what it is made of and written in`);
     bodyKey.onclick = () => this.onInspect(x.bodyRef);
-    links.append(family, character, bodyKey);
+    // (Why they do what they do, R7: beside their family, character and body.)
+    const why = el("button", "place-insp-whykey", "Why? ▸");
+    why.setAttribute("aria-label", `Why ${x.name} does what they do`);
+    why.onclick = () => this.onInspect(x.whyRef);
+    links.append(family, character, bodyKey, why);
     body.push(links);
     // (A hand's orders, by name: a trade, or let be.)
     if (this.orders && x.trade !== "child") {
@@ -849,6 +863,50 @@ export class PlaceInspector {
     );
     this.body.replaceChildren(...body);
   }
+  /** What now? (G3): each thing worth doing, what to do, and its Go to, its page, its sheet. */
+  private whatNow(x: PlaceInspectWhatNow): void {
+    this.picture(x);
+    const title = `${x.icon} ${x.name}`;
+    if (this.title.textContent !== title) this.title.textContent = title;
+    if (this.sub.textContent !== x.sub) this.sub.textContent = x.sub;
+    const list = el("div", "place-tips");
+    for (const t of x.tips) {
+      const row = el("div", "place-tip"),
+        keys = el("div", "place-tip-keys");
+      row.append(
+        el("p", "place-tip-words", `${t.icon} ${t.words}`),
+        el("p", "place-insp-why", t.how),
+      );
+      if (t.go) {
+        const go = t.go,
+          b = el("button", "place-tip-go", "🎯 Go to");
+        b.setAttribute("aria-label", `Go to it: ${t.words}`);
+        b.onclick = () => this.onGoFor(go);
+        keys.append(b);
+      }
+      if (t.ref) {
+        const ref = t.ref,
+          b = el("button", "place-tip-open", "Open ▸");
+        b.setAttribute("aria-label", `Open its page: ${t.words}`);
+        b.onclick = () => this.onInspect(ref);
+        keys.append(b);
+      }
+      if (t.sheet) {
+        const sheet = t.sheet,
+          b = el(
+            "button",
+            "place-tip-sheet",
+            `${sheet.charAt(0).toUpperCase()}${sheet.slice(1)} ▸`,
+          );
+        b.setAttribute("aria-label", `Open the ${sheet} sheet`);
+        b.onclick = () => this.onSheet(sheet);
+        keys.append(b);
+      }
+      row.append(keys);
+      list.append(row);
+    }
+    this.body.replaceChildren(list);
+  }
   /** What a sheet, a tab or a page is, in plain words (G2). */
   private help(x: PlaceInspectHelp): void {
     this.picture(x);
@@ -867,6 +925,41 @@ export class PlaceInspector {
       body.push(list);
     }
     this.body.replaceChildren(...body);
+  }
+  /** Why one does what they do (R7): each step, the page it opens, and where the eye can go for it. */
+  private whyPage(x: PlaceInspectWhy): void {
+    this.picture(x);
+    const title = `${x.icon} Why: ${x.name}`;
+    if (this.title.textContent !== title) this.title.textContent = title;
+    if (this.sub.textContent !== x.sub) this.sub.textContent = x.sub;
+    const list = el("div", "place-insp-whys");
+    for (const s of x.steps) {
+      const row = el("div", "place-insp-whystep");
+      row.append(el("span", "place-insp-label", s.label));
+      const words = el(
+        s.ref ? "button" : "span",
+        s.ref ? "place-link place-insp-whywords" : "place-insp-fact place-insp-whywords",
+        s.words,
+      );
+      if (s.ref) {
+        const ref = s.ref;
+        words.dataset.ref = ref;
+        words.onclick = () => this.onInspect(ref);
+      }
+      row.append(words);
+      if (s.go) {
+        const go = s.go,
+          k = el("button", "place-insp-go", go.lot !== null ? "📍" : "🎯");
+        k.title = go.lot !== null ? "Go there" : `Go to ${x.name}`;
+        k.setAttribute("aria-label", k.title);
+        k.onclick = () => this.onGo(go);
+        row.append(k);
+      }
+      list.append(row);
+    }
+    const back = el("button", "place-insp-order place-insp-whyback", `${x.name}'s page ▸`);
+    back.onclick = () => this.onInspect(x.personRef);
+    this.body.replaceChildren(list, back);
   }
   /** A town's works and orders (R6): what is going up, what its land may find next, its standing orders. */
   private civic(x: PlaceInspectCivic): void {

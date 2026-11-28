@@ -73,6 +73,8 @@ export type PlaceCaption = {
   /** Staying with one of its people (their name is the title); and whether there is one to stay with. */
   readonly stay: boolean;
   readonly one: boolean;
+  /** Who of its people the eye is with (R7: their Why?; null: no one). */
+  readonly id: number | null;
 };
 /** The weather over the town now, as the god game's bar tells it (null: none told). */
 export type PlaceWeather = {
@@ -171,6 +173,8 @@ export class PlaceHud {
   private readonly modeKey = el("button", "place-mode");
   private readonly modes = el("div", "place-modes");
   private readonly modesWords = el("p", "place-modes-words");
+  /** The welcome the first time in a town (G4). */
+  private readonly welcome = el("div", "place-welcome");
   private readonly modeKeys = new Map<PlaceMode, HTMLButtonElement>();
   private readonly menuKey = el("button", "place-menu-key", "≡");
   private readonly menu = el("div", "place-menu");
@@ -180,6 +184,7 @@ export class PlaceHud {
   private readonly watchTitle = el("span", "place-watch-title");
   private readonly watchWords = el("span", "place-watch-words");
   private readonly stayKey = el("button", "place-watch-stay", "📌");
+  private readonly whyKey = el("button", "place-watch-why", "❓");
   private captionNow: PlaceCaption | null = null;
   /** How the town is run now, and by whom where its head runs it. */
   ran: PlaceMode = "hand";
@@ -220,8 +225,14 @@ export class PlaceHud {
   onEscape: () => void = () => {};
   /** F: the eye kept with the one chosen, or let go (false: no one is chosen, and the key is not the mode's). */
   onFollow: () => boolean = () => false;
+  /** The eye sent to one of its people or a lot (R7). */
+  onGo: (g: { id: number | null; lot: number | null }) => void = () => {};
+  /** Why one of its people does what they do opened (R7). */
+  onWhy: (id: number) => void = () => {};
   /** What a sheet is, asked (G2): its topic. */
   onHelp: (topic: string) => void = () => {};
+  /** What now? asked (G3). */
+  onWhatNow: () => void = () => {};
   /** Its lessons asked for on a phone, or put back (G1): the inspector goes down while they are out. */
   onGuide: (out: boolean) => void = () => {};
   /** A sheet opened or closed, by a tab or from the page (for what lies beside it). */
@@ -275,7 +286,29 @@ export class PlaceHud {
     this.bar.append(back, id, sky, this.modeKey, this.menuKey);
     // (The pill in the bar on a desk, under it on a phone: placed once the chrome is put together, below.)
     this.deskQuery?.addEventListener?.("change", () => this.placePill());
-    this.modes.append(this.modesWords);
+    // (The first time in a town, a welcome over the ways to play it: G4. Shown once; Skip, or choosing a way, ends it.)
+    const skip = el("button", "place-welcome-skip", "Skip");
+    skip.setAttribute("aria-label", "Skip the welcome: play on as it is run now");
+    skip.onclick = () => {
+      this.guide.welcome();
+      this.choosing(false);
+    };
+    this.welcome.append(
+      el("b", "", "Welcome to the town."),
+      el(
+        "span",
+        "",
+        " Its people live their day by themselves, hour by hour. You can step in and run it, let its own head run it, or just watch. Choose a way below; ✋ on the bar changes it later.",
+      ),
+      el(
+        "span",
+        "place-welcome-leave",
+        " To leave the town, tap ◂ at the top left, or ≡ and then Leave the town. 🎓 Lessons, in ≡, show you the rest.",
+      ),
+      skip,
+    );
+    this.welcome.hidden = true;
+    this.modes.append(this.welcome, this.modesWords);
     for (const [mode, sign, words, does] of MODES) {
       const b = el("button", "place-mode-choice");
       b.append(
@@ -284,6 +317,7 @@ export class PlaceHud {
       );
       b.dataset.mode = mode;
       b.onclick = () => {
+        if (!this.welcome.hidden) this.guide.welcome();
         this.choosing(false);
         if (mode !== this.ran) this.onMode(mode);
       };
@@ -315,7 +349,17 @@ export class PlaceHud {
       this.guide.ask(true);
       this.onGuide(true);
     };
-    this.menu.append(this.soundKey, ways, lessons, leave);
+    // (What now? G3: from the menu, and on the lessons' card.)
+    const now = el("button", "place-menu-item place-menu-now", "💡  What now?");
+    now.onclick = () => {
+      this.menuOpen(false);
+      this.onWhatNow();
+    };
+    const cardNow = el("button", "place-guide-now", "💡 What now?");
+    cardNow.setAttribute("aria-label", "What now? The few things most worth doing next");
+    cardNow.onclick = () => this.onWhatNow();
+    this.guide.extra.append(cardNow);
+    this.menu.append(this.soundKey, ways, now, lessons, leave);
     this.guide.onLaid = () => this.laidGuide();
     this.menu.hidden = true;
     this.watchText.append(this.watchTitle, this.watchWords);
@@ -323,11 +367,15 @@ export class PlaceHud {
       if (this.captionNow?.ref) this.onOpen(this.captionNow.ref);
     };
     this.stayKey.onclick = () => this.onStay(!this.captionNow?.stay);
+    this.whyKey.onclick = () => {
+      const id = this.captionNow?.id;
+      if (id !== null && id !== undefined) this.onWhy(id);
+    };
     const next = el("button", "place-watch-next", "⏭");
     next.title = "On to another of the town";
     next.setAttribute("aria-label", next.title);
     next.onclick = () => this.onNext();
-    this.watch.append(this.watchText, this.stayKey, next);
+    this.watch.append(this.watchText, this.whyKey, this.stayKey, next);
     this.watch.hidden = true;
     this.mode("hand");
     this.notice.append(this.noticeText);
@@ -482,6 +530,11 @@ export class PlaceHud {
     this.modesWords.textContent = entering
       ? "How is this town to be run? You can change it from ✋ on the bar."
       : "How is this town to be run?";
+    // (The welcome, the first time in only: G4.)
+    const welcoming = on && entering && !this.guide.welcomed;
+    this.welcome.hidden = !welcoming;
+    this.modesWords.hidden = welcoming;
+    this.modes.classList.toggle("welcoming", welcoming);
     this.modeKey.setAttribute("aria-expanded", String(on));
     this.element.classList.toggle("choosing", on);
   }
@@ -558,6 +611,16 @@ export class PlaceHud {
         ? `Stay with ${c.title}, whatever else happens`
         : "Stay with one of the town: there is no one the eye is with now";
     this.stayKey.classList.toggle("on", !!c?.stay);
+    // (Why the one the eye is with does what they do, R7.)
+    const whyWords =
+      c?.id !== null && c?.id !== undefined
+        ? `Why ${c.title} does what they do`
+        : "No one to ask why of";
+    this.whyKey.disabled = c?.id === null || c?.id === undefined;
+    if (this.whyKey.title !== whyWords) {
+      this.whyKey.title = whyWords;
+      this.whyKey.setAttribute("aria-label", whyWords);
+    }
     this.stayKey.disabled = !c?.stay && !c?.one;
     if (this.stayKey.title !== say) {
       this.stayKey.title = say;
@@ -1554,6 +1617,22 @@ export class PlaceHud {
         b.dataset.ref = ref;
         b.onclick = () => this.onOpen(ref);
         names.append(b);
+        // (Go to whom it was of, whom it was with, and where it happened, R7.)
+        for (const g of x.go) {
+          const k = el(
+            "button",
+            "place-log-go",
+            g.lot !== null
+              ? "📍"
+              : g.words === `Go to ${x.name}`
+                ? "🎯"
+                : `🎯 ${g.words.replace(/^Go to /, "")}`,
+          );
+          k.title = g.words;
+          k.setAttribute("aria-label", g.words);
+          k.onclick = () => this.onGo(g);
+          names.append(k);
+        }
         if (group.length === 1) names.append(el("span", "place-log-told", ` ${x.told}`));
       }
       entry.append(names);

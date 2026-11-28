@@ -111,6 +111,7 @@ import {
   siteStage,
   workWorth,
   type Place,
+  type PlaceHap,
   OFF_WORTH,
   placeDayOf,
   actWords,
@@ -1992,6 +1993,42 @@ const LOG_EACH = 4,
  * them. A death, a hurt, a home lost has a line of its own however many there were; of the rest a day tells the latest
  * few of a kind and counts the others ("and 38 more came to the town").
  */
+/** The happenings that are of two of a town's people: `a` the other (R7). */
+const HAP_WITH: ReadonlySet<number> = new Set([
+  HAP.paired,
+  HAP.quarrel,
+  HAP.brawl,
+  HAP.parted,
+  HAP.stole,
+  HAP.caught,
+  HAP.judged,
+]);
+/**
+ * Where the eye can go for a happening of the log (R7): to whom it was of and whom it was with, where they are of the
+ * town still; to where it happened, where its telling keeps it (a work made or a masterwork: `a`, its lot; a crew put to a
+ * site: `a`; a home moved to: `b`).
+ */
+function logGo(
+  place: Place,
+  x: PlaceHap,
+  index: ReadonlyMap<number, number>,
+  who: (i: number) => { readonly name: string },
+  name: string | null,
+): PlaceLogSheet["rows"][number]["go"] {
+  const go: { id: number | null; lot: number | null; words: string }[] = [];
+  if (name !== null) go.push({ id: x.id, lot: null, words: `Go to ${name}` });
+  const j = HAP_WITH.has(x.what) && x.a ? index.get(x.a) : undefined;
+  if (j !== undefined) go.push({ id: x.a, lot: null, words: `Go to ${who(j).name}` });
+  const lot =
+    x.what === HAP.madeWork || x.what === HAP.inspired || x.what === HAP.crew
+      ? x.a
+      : x.what === HAP.moved
+        ? x.b
+        : null;
+  if (lot !== null && lot >= 0) go.push({ id: null, lot, words: `Go to ${lotWords(place, lot)}` });
+  return go;
+}
+
 export function logSheet(world: World, place: Place, most = 160): PlaceLogSheet {
   const who = placeWho(world, place),
     index = new Map<number, number>(),
@@ -2038,6 +2075,7 @@ export function logSheet(world: World, place: Place, most = 160): PlaceLogSheet 
           : (hapRef(place, x) ??
             (x.what === HAP.gate ? placeGateRef(place.town) : placePersonRef(place.town, x.id))),
         day,
+        go: logGo(place, x, index, who, one?.name ?? null),
       });
     }
     for (const [of, n] of more)
@@ -2050,6 +2088,7 @@ export function logSheet(world: World, place: Place, most = 160): PlaceLogSheet 
         words: `and ${n} more ${hapMany(place, Math.floor(of / 256), HAP_GRAVE.has(Math.floor(of / 256)) ? of % 256 : 0)}`,
         ref: null,
         day,
+        go: [],
       });
   }
   // (The town's bookkeeping, the Log's alone: its doings by its orders that its land has yet to be told.)

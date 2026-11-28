@@ -139,11 +139,19 @@ export function installWatch(d: WatchDeps): WatchFlow {
         ref: null,
         stay: false,
         one: false,
+        id: null,
       });
     const s = subject;
     d.caption(
       s
-        ? { title: s.title, words: s.words, ref: s.ref, stay, one: s.id !== null && !s.sight }
+        ? {
+            title: s.title,
+            words: s.words,
+            ref: s.ref,
+            stay,
+            one: s.id !== null && !s.sight,
+            id: s.id,
+          }
         : null,
     );
   };
