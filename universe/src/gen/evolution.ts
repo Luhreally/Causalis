@@ -1047,6 +1047,14 @@ export function ageSpan(k: number): [number, number] {
 
 const STEM_WAYS: readonly Way[] = ["sea swimmer", "sea crawler", "burrower"];
 
+/** The tree's ways in a fixed order: a line act names its way by its place here (rules/dawn.ts lineAct). */
+export function wayAt(i: number): Way | null {
+  return (Object.keys(WAYS) as Way[])[i] ?? null;
+}
+export function wayIndex(way: Way): number {
+  return (Object.keys(WAYS) as Way[]).indexOf(way);
+}
+
 /**
  * Many changed bodies of a mother's, the fittest kept for its way: each try one to three
  * changes; only what is fitter is kept, and what came along with it that helps nothing is
@@ -1977,6 +1985,54 @@ function growTree(g: HomeWorld): TreeOfLife {
       fate: null,
       origin: people.cell,
       warm: s.warm,
+    });
+  }
+
+  // The lines lived by a hand and made so (Live a Line, 2026-11-28: rules/dawn.ts linesMade): each a daughter of the line it
+  // was lived from, arisen in the age it was lived into, bred toward the way it took by this world's own breeding (its own
+  // keyed draws, its physics), living to now. Last of the tree's lines, so none before it moves; none without such an act.
+  for (const l of g.lines ?? []) {
+    const mother = nodes[l.node],
+      way = wayAt(l.way);
+    if (!mother?.genome || !way || l.age < Math.max(0, mother.arose)) continue;
+    if (mother.died !== null && l.age > mother.died) continue;
+    const env = envOf(
+        WAYS[way].sea ? sea : climateMean(g.planet),
+        WAYS[way].sea ? 1000 : 700,
+        l.age,
+        0.15,
+      ),
+      // (Its body as the hand left it, eating as its way does; untold, the world's own breeding makes it.)
+      genome: Genome = l.genome
+        ? { ...(l.genome as Genome), diet: WAYS[way].diet }
+        : evolve(mother.genome, way, env, 7000 + l.node * 64 + l.age, 5),
+      body = develop(genome, WAYS[way].level),
+      [start, end] = ageSpan(l.age),
+      // (Within its age, and no older than its mother nor younger than her end.)
+      from = Math.min(
+        mother.from,
+        Math.max(
+          mother.to ?? -Infinity,
+          Math.round(start - (start - end) * 0.3 * u(41, l.node, l.age)),
+        ),
+      );
+    add({
+      parent: mother.id,
+      kind: "crown",
+      name: `Your line: ${stemName(way, body, names)}`,
+      what: `${creatureWords(body, wayWord(way))}: the line your hand lived, made so`,
+      species: null,
+      way,
+      from,
+      to: null,
+      arose: l.age,
+      died: null,
+      genome,
+      body,
+      innovations: innovations(mother.genome, genome, way, env),
+      fate: null,
+      origin: mother.origin,
+      warm: mother.warm,
     });
   }
 

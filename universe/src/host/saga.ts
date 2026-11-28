@@ -47,7 +47,15 @@ export function lineFrom(get: () => Promise<LineAsk>): void {
 }
 
 /** The page's askings of a line, answered by host/line.ts once it is fetched. */
-const ASKED = ["line.facts", "line.founders", "line.young", "line.bred", "saga.list", "saga.keep"];
+const ASKED = [
+  "line.facts",
+  "line.founders",
+  "line.young",
+  "line.bred",
+  "line.makeSo",
+  "saga.list",
+  "saga.keep",
+];
 export function sagaQueries(): Readonly<Record<string, QueryHandler>> {
   return Object.fromEntries(
     ASKED.map((type) => [

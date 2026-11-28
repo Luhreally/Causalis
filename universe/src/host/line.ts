@@ -7,9 +7,12 @@
 // (gen/evolution.ts mutate), told by what changed and what favoured it (innovations, pressures). Between the generations
 // played it is bred forward off the screen by those draws and the fitness of its way, and a line too unfit for its world
 // dies out: the player goes on as its nearest living kin. Pure reads of the world as generated: nothing here is history.
-import { finish, hashString, mix, type World } from "../kernel/index.ts";
+import { finish, hashString, mix, seedWithAct, type World } from "../kernel/index.ts";
 import {
   AGES,
+  AGE_MY,
+  GENOME_CODE,
+  wayIndex,
   ageSpan,
   beastLookOf,
   develop,
@@ -34,7 +37,13 @@ import {
   type Way,
 } from "../gen/index.ts";
 import {
+  DAWN_WAYS,
   KINDS,
+  LIFE_NICHES,
+  LIFE_WAYS,
+  dawnAct,
+  lifeAct,
+  type DawnWay,
   bodyBreaks,
   breathingCeiling,
   largestFrame,
@@ -52,6 +61,8 @@ export type LineBody = {
   readonly body: CreatureBody;
   /** What it is, against its world's physics, in plain words. */
   readonly reasons: readonly string[];
+  /** A founder's line in the tree of life (its node), that a line made so is a daughter of (absent: not a founder). */
+  readonly node?: number;
   /** How well it suits its way here (the world's own fitness), and against its mother (null: a founder). */
   readonly fit: number;
   readonly better: number | null;
@@ -287,7 +298,7 @@ export function foundersOf(g: HomeWorld, digest: string, saga: number, gen: numb
     if (!made) continue;
     seen.add(kind);
     seen.add(way);
-    out.push({ ...made, reasons: [`as ${n.name} were: ${n.what}`, ...made.reasons] });
+    out.push({ ...made, node: n.id, reasons: [`as ${n.name} were: ${n.what}`, ...made.reasons] });
   }
   return out;
 }
@@ -469,7 +480,79 @@ export function keepSaga(store: SagaStore, id: number, data: unknown): number {
   return sid;
 }
 
+/**
+ * The act that makes a line lived by a hand so: "line 6 1 11 <code>" (its node, its age, its way, and its body's
+ * instructions as the hand left them, gen/homeworld.ts GENOME_CODE's values by commas: linesMade reads them back).
+ */
+export function lineAct(
+  node: number,
+  age: number,
+  way: number,
+  genome: Genome | null = null,
+): string {
+  const g = genome as Record<string, unknown> | null,
+    code = g
+      ? GENOME_CODE.map((k) => {
+          const v = g[k];
+          return v === undefined
+            ? ""
+            : typeof v === "boolean"
+              ? v
+                ? "1"
+                : "0"
+              : Array.isArray(v)
+                ? v.join("+")
+                : String(v).replace(/ /g, "_");
+        })
+          .join(",")
+          .replace(/,+$/, "")
+      : "";
+  return `line ${node} ${age + 1} ${way}${code ? ` ${code}` : ""}`;
+}
+
+/** The age (oldest 0) a time falls in (millions of years ago). */
+function ageOfMy(my: number): number {
+  return Math.min(AGES - 1, Math.max(0, AGES - 1 - Math.floor(my / AGE_MY)));
+}
+
+/**
+ * "Make it so" (Live a Line, 2026-11-28): the seed's text with the acts the line lived lays on the world's dawn. The way its
+ * cell took is the way that prospered in the first seas (dawn); each land age its body was played in, the way of life that
+ * prospered there (life); and the line itself, a daughter of the line its body was founded from, in the age it was last
+ * lived in (line). A new world is made from it; the world it was lived in is kept.
+ */
+export function makeSo(
+  text: string,
+  a: {
+    cell: string | null;
+    bodies: readonly { my: number; way: Way }[];
+    node: number | null;
+    genome?: Genome | null;
+  },
+): { seed: string; acts: string[] } {
+  const acts: string[] = [];
+  const dawn = {
+    eater: "eaters",
+    light: "light",
+    hunter: "hunters",
+    colony: "together",
+    together: "together",
+  }[a.cell ?? ""];
+  if (dawn && (DAWN_WAYS as readonly string[]).includes(dawn)) acts.push(dawnAct(dawn as DawnWay));
+  for (const b of a.bodies) {
+    const life = LIFE_WAYS.find((w) => LIFE_NICHES[w].includes(b.way));
+    if (life) acts.push(lifeAct(ageOfMy(b.my), life));
+  }
+  const last = a.bodies.at(-1);
+  if (last && a.node !== null && wayIndex(last.way) >= 0)
+    acts.push(lineAct(a.node, ageOfMy(last.my), wayIndex(last.way), a.genome ?? null));
+  return { seed: acts.reduce(seedWithAct, text), acts };
+}
+
 type Asked = {
+  cell: string | null;
+  bodies: { my: number; way: Way }[];
+  node: number | null;
   ref?: string;
   id: number;
   data: unknown;
@@ -508,6 +591,8 @@ export function ask(type: string, world: World, args: unknown): unknown {
         .map((s) => ({ id: s.id, data: s.data }));
     case "saga.keep":
       return keepSaga(store(), a.id, a.data);
+    case "line.makeSo":
+      return makeSo(world.seed.text, a);
   }
   throw new Error(`no asking ${type}`);
 }

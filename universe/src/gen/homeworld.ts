@@ -10,6 +10,7 @@ import {
   hashString,
   mix,
   sphereGrid,
+  seedActs,
   type Seed,
   type SphereGrid,
 } from "../kernel/index.ts";
@@ -81,6 +82,8 @@ export type HomeWorld = {
   /** Life's lineages over those ages, the living world they left, and where the people arose. */
   readonly life: Biosphere;
   readonly digest: string;
+  /** The lines a hand lived and made so (Live a Line: rules/dawn.ts linesMade); absent where there are none. */
+  readonly lines?: readonly LineMade[];
   /**
    * The digest of the ground alone — the star, the planet, its plates and relief. What
    * is keyed on it (surface ores, the terrain of regions) stays put when later layers
@@ -297,6 +300,10 @@ export function generateHomeWorld(
   if (life.people) h.value(life.people.body);
   // (Where the hand bade them rise: kept apart from a world whose people rose where they would.)
   if (life.people && peoplingMade(seed.text).cradle !== null) h.int(life.people.cell);
+  // (The lines a hand lived and made so: their tree is another, so the world is, as with every act; none, and the digest
+  // is as it was. Every reading kept by a world's digest keeps them apart.)
+  const lines = linesMade(seed.text, AGES);
+  for (const l of lines) h.value(l);
   hashArray(h, life.present);
   for (const d of deposits) h.value(d);
   return {
@@ -312,6 +319,7 @@ export function generateHomeWorld(
     deep,
     life,
     digest: h.hex(),
+    ...(lines.length ? { lines } : {}),
     ground,
     ...(proto ? { physical: true as const } : {}),
     ...(far ? { far } : {}),
@@ -460,4 +468,81 @@ export function seamRef(w: HomeWorld, cell: number, kind: "coal" | "oil"): strin
   if (!surfaceOre(w, cell, kind)) return null;
   const age = kind === "coal" ? w.deep.coalAge[cell]! : w.deep.oilAge[cell]!;
   return age === 255 ? null : ageRef(0, age);
+}
+
+/**
+ * A line lived by a hand (Live a Line's "Make it so", 2026-11-28): the tree of life's line it was lived from (its node: the
+ * dawn's lines are laid in one order on every world, so a node names the same line made again), the age it was lived into
+ * (oldest 0), the way it took (its place in the tree's list of ways: evolution.ts wayAt), and its body's instructions as
+ * the hand left them (null: none told, or none that read; the world's own breeding then makes it).
+ * "line 6 1 11 bilateral,1,0,0,0,slick,0.004,0,0.2,0,walk,claws,0,0,plain".
+ */
+export type LineMade = {
+  readonly node: number;
+  readonly age: number;
+  readonly way: number;
+  readonly genome: Record<string, unknown> | null;
+};
+
+/** The lines a seed's acts made, in their order (none: the tree as it would have grown). host/line.ts lineAct lays one. */
+export function linesMade(text: string, ages: number): LineMade[] {
+  const out: LineMade[] = [];
+  for (const a of seedActs(text)) {
+    const [word, n, k, w, code, ...rest] = a.split(" "),
+      node = Number(n),
+      age = Number(k) - 1,
+      way = Number(w);
+    if (word !== "line" || rest.length || ![node, age, way].every(Number.isInteger)) continue;
+    if (node < 0 || age < 0 || age >= ages || way < 0) continue;
+    out.push({ node, age, way, genome: code ? genomeRead(code) : null });
+  }
+  return out;
+}
+
+/**
+ * A body's instructions in a line act, a value each in this order, by commas (none: empty; yes and no: 1 and 0; what grows
+ * on it by +; a space as _). What it eats is its way's, so not told.
+ */
+export const GENOME_CODE = [
+  "axis",
+  "segments",
+  "legs",
+  "fins",
+  "wings",
+  "skin",
+  "mass",
+  "neck",
+  "tail",
+  "warm",
+  "gait",
+  "grows",
+  "eyes",
+  "feelers",
+  "pattern",
+  "rays",
+  "arms",
+  "grasp",
+  "mode",
+  "frame",
+  "place",
+  "food",
+  "stock",
+  "breath",
+] as const;
+
+function genomeRead(code: string): Record<string, unknown> | null {
+  const g: Record<string, unknown> = { grows: [] };
+  code.split(",").forEach((v, i) => {
+    const key = GENOME_CODE[i];
+    if (!key || v === "") return;
+    g[key] =
+      key === "warm" || key === "feelers"
+        ? v === "1"
+        : key === "grows"
+          ? v.split("+")
+          : /^-?[\d.]+(e-?\d+)?$/.test(v)
+            ? Number(v)
+            : v.replace(/_/g, " ");
+  });
+  return typeof g.mass === "number" && typeof g.axis === "string" ? g : null;
 }

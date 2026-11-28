@@ -32,6 +32,8 @@ export type LineBody = {
   readonly genome: Record<string, unknown> & { readonly mass: number; readonly diet: string };
   readonly body: BeastPlan;
   readonly reasons: readonly string[];
+  /** A founder's line in the tree of life (host/line.ts). */
+  readonly node?: number;
   readonly fit: number;
   readonly better: number | null;
 };

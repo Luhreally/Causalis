@@ -53,6 +53,9 @@ export {
   surfaceCopper,
   surfaceOre,
   type HomeWorld,
+  linesMade,
+  GENOME_CODE,
+  type LineMade,
 } from "./homeworld.ts";
 export { makeHydrology, type Hydrology } from "./hydrology.ts";
 export { currentsOf, type Currents } from "./currents.ts";
@@ -211,6 +214,8 @@ export {
 export { COVER, WORLD_FREQUENCY, otherWorld, type OtherWorld } from "./worlds.ts";
 export {
   ageSpan,
+  wayAt,
+  wayIndex,
   descendantsOf,
   develop,
   distance,
