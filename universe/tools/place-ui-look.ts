@@ -67,6 +67,33 @@ const root = fileURLToPath(new URL("..", import.meta.url)),
         });
 console.log(`browser: ${engine} ${browser.version()}`);
 const READ = hudRead([], 1);
+/** The keys whose face is a sign (U3), and a reading of those shown with no word under them, or a word cut by them. */
+const SIGN_KEYS = [
+  ".place-insp-back",
+  ".place-insp-ahead",
+  ".place-insp-follow",
+  ".place-insp-info",
+  ".place-insp-page",
+  ".place-insp-helpkey",
+  ".place-insp-shut",
+  ".place-lens-key",
+  ".place-mode",
+  ".place-leave",
+  ".place-menu-key",
+  ".place-row-unpin",
+  ".place-info",
+  ".place-log-go",
+  ".place-watch-why",
+  ".place-watch-stay",
+  ".place-watch-next",
+  ".place-sheet-help",
+  ".place-sheet-shut",
+  ".place-sheet-back",
+  ".place-insp-go",
+  ".place-levels-up",
+  ".place-levels-down",
+].join(", ");
+const SIGNED = `(() => { const out = []; for (const b of document.querySelectorAll(${JSON.stringify(SIGN_KEYS)})) { const r = b.getBoundingClientRect(); if (!(r.width > 0 && r.height > 0)) continue; const w = b.querySelector(".place-capkey-words"); if (w) { const q = w.getBoundingClientRect(); if (!(q.width > 0 && q.height > 0 && (w.textContent ?? "").trim() && q.left >= r.left - 0.5 && q.right <= r.right + 0.5 && q.bottom <= r.bottom + 0.5)) out.push(b.className + " cut"); } else if (!/[A-Za-z]{3}/.test(b.textContent ?? "")) out.push(b.className + " " + JSON.stringify(b.textContent)); } return out; })()`;
 type State = { on: boolean; town: string | null; told: PlaceFrame | null; ran: string };
 
 for (const view of [
@@ -132,6 +159,12 @@ for (const view of [
           small.length === 0,
           `${name}: none of its own controls smaller than a fingertip (${small.slice(0, 4).join("; ")})`,
         );
+      // (Every key whose face is only a sign has its word under it, whole within it: a phone shows no title. U3.)
+      const bare = await k<string[]>(SIGNED);
+      check(
+        bare.length === 0,
+        `${name}: every key that is only a sign has its word under it (${bare.slice(0, 3).join("; ")})`,
+      );
     },
     look = async (name: string, what: string) => {
       await page.waitForTimeout(400);
@@ -387,6 +420,29 @@ for (const view of [
     check(over === 0, `no sign over another (${over})`);
     await look("03c-bubbles", "signs over heads near the eye");
   }
+  // (An alert's words reached with no hover, U3: a finger held on its key tells them in the notice line, going nowhere.)
+  if (phone) {
+    if ((await shown(".place-notice-shut")) > 0)
+      await press(".place-notice-shut", "the notice put away");
+    const before = await k<string | null>("globalThis.causalis.place.state().inspected.ref");
+    await k(
+      `document.querySelector(".place-alert")?.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, pointerType: "touch" }))`,
+    );
+    await page.waitForTimeout(700);
+    await k(
+      `(() => { const b = document.querySelector(".place-alert"); b?.dispatchEvent(new PointerEvent("pointerup", { bubbles: true, pointerType: "touch" })); b?.click(); })()`,
+    );
+    await page.waitForTimeout(400);
+    const words = await k<string>(
+      `document.querySelector(".place-notice:not([hidden]) .place-notice-words")?.textContent ?? ""`,
+    );
+    check(
+      words.length > 3 &&
+        (await k<string | null>("globalThis.causalis.place.state().inspected.ref")) === before,
+      `a finger held on an alert tells its words and goes nowhere ("${words.slice(0, 60)}")`,
+    );
+    await look("04b-alert-held", "an alert's words, a finger held on it");
+  }
   await press(".place-alert", "the gravest alert");
   await page.waitForTimeout(1300);
   await look("05-alert-tapped", "an alert tapped: the eye gone there");
@@ -482,6 +538,14 @@ for (const view of [
       if (phone) {
         await k('globalThis.causalis.place.inspectHeight("half")');
         await page.waitForTimeout(400);
+        // (All eight in one row in sight at half the screen, each a fingertip wide: U3.)
+        const fit = await k<{ n: number; rows: number; inside: boolean; least: number }>(
+          `(() => { const b = document.querySelector(".place-insp-body").getBoundingClientRect(), t = [...document.querySelectorAll(".place-insp-tab")].map((e) => e.getBoundingClientRect()).filter((r) => r.width > 0); return { n: t.length, rows: new Set(t.map((r) => Math.round(r.top))).size, inside: t.every((r) => r.left >= b.left - 0.5 && r.right <= b.right + 0.5 && r.top >= b.top - 0.5 && r.bottom <= b.bottom + 0.5), least: Math.min(...t.map((r) => Math.min(r.width, r.height))) }; })()`,
+        );
+        check(
+          fit.n === 8 && fit.rows === 1 && fit.inside && fit.least >= 44,
+          `a person's eight tabs in one row in sight at half the screen (${JSON.stringify(fit)})`,
+        );
       }
       await press('.place-insp-tab[data-tab="mood"]', "the Mood tab, to show the tabs");
       const cut = await clipped();
@@ -497,9 +561,26 @@ for (const view of [
     }
     say(`inspector: ${(await text(".place-insp")).slice(0, 400)}`);
     if (phone) {
+      // (The handle says what it does, in a word: U3.)
+      check(
+        /More/.test(await text(".place-insp-handle")),
+        `the handle says "More" at a peek ("${await text(".place-insp-handle")}")`,
+      );
       await press(".place-insp-handle", "the inspector's handle, to half");
       await look("13-insp-half", "the inspector at half the screen");
       await press(".place-insp-handle", "the inspector's handle, to all of it");
+      check(
+        /Less/.test(await text(".place-insp-handle")),
+        `the handle says "Less" at its full height ("${await text(".place-insp-handle")}")`,
+      );
+      // (A quarter of the town and more in sight above it, between the paces and the tabs: U3.)
+      const room = await k<{ top: number; pill: number; foot: number }>(
+        `(() => { const i = document.querySelector(".place-insp").getBoundingClientRect(), p = document.querySelector(".place-pill").getBoundingClientRect(), f = document.querySelector(".place-foot").getBoundingClientRect(); return { top: i.top, pill: p.bottom, foot: f.top }; })()`,
+      );
+      check(
+        room.top - room.pill >= 0.25 * (room.foot - room.pill) - 0.5,
+        `a full inspector leaves a quarter of the town in sight (${JSON.stringify(room)})`,
+      );
       await look("14-insp-full", "the inspector at its full height");
     }
     for (const tab of ["mood", "health", "skills", "social", "gear", "life", "work"]) {
@@ -622,6 +703,15 @@ for (const view of [
     } else say("the one inspected keeps no work: no orders to look at");
     // Their table, and what they take where they need it (P4): on their first screen.
     check((await shown(".place-insp-table")) > 0, "their household's table told on their page");
+    // (What they hold a tap from their first tab: U3.)
+    await press(".place-insp-gearkey", "Gear ▸, on their first tab");
+    check(
+      (await k<string>(
+        `document.querySelector(".place-insp-tab.on")?.getAttribute("data-tab") ?? ""`,
+      )) === "gear",
+      "Gear ▸ opens what they hold",
+    );
+    await press('.place-insp-tab[data-tab="now"]', "back to their first tab");
     say(
       `table: ${await text(".place-insp-table")}${(await shown(".place-insp-takes")) ? ` · ${await text(".place-insp-takes")}` : ""}`,
     );
@@ -838,9 +928,16 @@ for (const view of [
     `globalThis.causalis.client.query({ type: "place.work", args: { ref: ${JSON.stringify(town.ref)} } }).then((s) => s?.buildings[0]?.lot ?? null)`,
   );
   if (lot !== null) {
+    // (From a peek: any page but one of its people opens at half the screen on a phone, U3.)
+    if (phone) await k('globalThis.causalis.place.inspectHeight("peek")');
     await k(`globalThis.causalis.place.inspect(${JSON.stringify(`plcl:${town.ref}:${lot + 3}`)})`);
     await until("a building's inspector", async () => (await text(".place-insp-body")).length > 0);
     await page.waitForTimeout(900);
+    if (phone)
+      check(
+        (await inspected()).height === "half",
+        `a building's page opens at half the screen on a phone (${(await inspected()).height})`,
+      );
     say(`building: ${(await text(".place-insp")).slice(0, 400)}`);
     say(`the building's first answer came ${(await inspected()).answered} ms after it was asked`);
     await look("20-insp-lot", "a building inspected");
@@ -848,7 +945,7 @@ for (const view of [
     check((await shown(".place-insp-warmth")) > 0, "a building's warmth told on its page");
     // Its zone (O2): made a meeting place by its key, the page saying so; the Zones overlay below shows it.
     check((await shown(".place-insp-zones .place-chip")) >= 2, "a lot's page has its zone keys");
-    // (On a phone the page opens peeked, its zone keys below the fold: raised and scrolled to, as a finger would.)
+    // (Its zone keys below the fold: at half the screen and scrolled to, as a finger would.)
     await k('globalThis.causalis.place.inspectHeight("half")');
     await page.waitForTimeout(400);
     await k(
@@ -1041,6 +1138,51 @@ for (const view of [
     await press(".place-insp-back", "‹ Back to the fields' page");
     await until("the fields' page again", async () => (await kind()) === "lot", 8000);
     check((await kind()) === "lot", "Back from the fields comes to their page");
+    // The town's own pages (U3): the foot's Town key lists them, at half the screen on a phone; its ground level by level
+    // a tap from the list (three from entering); Back to the list. And from the menu, where a town watched has no foot.
+    {
+      await k("globalThis.causalis.place.inspect(null)");
+      if (phone) await k('globalThis.causalis.place.inspectHeight("peek")');
+      await page.waitForTimeout(300);
+      await press('.place-tab[data-tab="town"]', "🏘️ Town, at the foot");
+      await until("the town's own pages", async () => (await kind()) === "townpages", 8000);
+      await page.waitForTimeout(400);
+      say(`the town's pages: ${(await text(".place-insp-body")).slice(0, 300)}`);
+      check(
+        (await shown(".place-town-row")) === 9,
+        `the Town key lists the town's eight pages and its levels (${await shown(".place-town-row")})`,
+      );
+      if (phone)
+        check(
+          (await inspected()).height === "half",
+          "the town's pages open at half the screen on a phone",
+        );
+      await look("20s-town-pages", "the town's own pages");
+      await press(
+        '.place-town-row[data-ref^="plcz:"]',
+        "Its ground, level by level, from the town's pages",
+      );
+      await until(
+        "its levels, from the town's pages",
+        async () => (await kind()) === "levels",
+        8000,
+      );
+      check((await kind()) === "levels", "the town's ground level by level a tap from its pages");
+      await press(".place-insp-back", "‹ Back to the town's pages");
+      await until("the town's pages again", async () => (await kind()) === "townpages", 8000);
+      check((await kind()) === "townpages", "Back from one of them comes to the town's pages");
+      await press(".place-insp-shut", "× the town's pages");
+      await press(".place-menu-key", "the menu, for the town's pages");
+      await press(".place-menu-town", "🏘️ The town's own pages, first in the menu");
+      await until(
+        "the town's pages, from the menu",
+        async () => (await kind()) === "townpages",
+        8000,
+      );
+      check((await kind()) === "townpages", "the menu opens the town's pages too");
+      await press(".place-insp-shut", "× the town's pages, opened from the menu");
+      await page.waitForTimeout(300);
+    }
     // Below the town (O8): from the square's page; its ground cut through, its water and wells, its lodes; Back to it.
     await k(`globalThis.causalis.place.inspect(${JSON.stringify(`plcl:${town.ref}:0`)})`);
     await until("the square's page", async () => (await shown(".place-insp-below")) > 0, 8000);
@@ -1230,15 +1372,37 @@ for (const view of [
     // One of its dead (R1): the Log's names lead to them; their page outlives them, and Back comes again.
     {
       await press('.place-tab[data-tab="log"]', "the log tab, for one of its dead");
-      // (What the Log is, in plain words, G2: its sheet's ?, a page of the inspector's.)
+      // (What the Log is, in plain words, G2: its sheet's ?, told in the sheet itself with ‹ Back to the sheet, U3; no
+      // page of the inspector's over it, where each had some 150 px of a phone.)
       {
         await until("the log sheet's ?", async () => (await shown(".place-sheet-help")) > 0, 8000);
+        const was = (await inspected()).ref;
         await press(".place-sheet-help", "? on the Log");
-        await until("what the Log is", async () => (await kind()) === "help", 8000);
-        check(/Log/.test(await text(".place-insp-names")), "what the Log is, in plain words");
-        await look("20i-sheet-help", "what a sheet is, over it");
-        await press(".place-insp-shut", "× what the Log is");
-        await page.waitForTimeout(300);
+        await until(
+          "what the Log is, in the sheet",
+          async () => (await shown(".place-sheet-helpwords")) > 0,
+          8000,
+        );
+        check(
+          /Log/.test(await text(".place-sheet-head h2")) &&
+            (await shown(".place-sheet-back")) === 1,
+          `what the Log is, in plain words, in the sheet itself ("${await text(".place-sheet-head h2")}")`,
+        );
+        check((await inspected()).ref === was, "no page opened over the sheet for it");
+        await look("20i-sheet-help", "what a sheet is, in the sheet");
+        await press(".place-sheet-back", "‹ Back to the Log from what it is");
+        await until(
+          "the Log again",
+          async () =>
+            (await shown(".place-sheet-helpwords")) === 0 &&
+            !/^…$/.test(await text(".place-sheet-body")),
+          8000,
+        );
+        check(
+          (await shown(".place-sheet-back")) === 0 &&
+            (await text(".place-sheet-head h2")) === "Log",
+          "Back from what the Log is comes to the Log",
+        );
       }
       await until("the log sheet", async () => !/^…$/.test(await text(".place-sheet-body")));
       await page.waitForTimeout(500);
@@ -1392,11 +1556,11 @@ for (const view of [
   await page.waitForTimeout(400);
   check((await shown(".place-insp")) === 0, "Esc lets go of what was inspected");
 
-  // The menu: sound, the ways, what now, the lessons, leaving.
+  // The menu: the town's pages, sound, the ways, what now, the lessons, leaving.
   await press(".place-menu-key", "≡");
   check(
-    (await shown(".place-menu-item")) === 5,
-    "the menu has its five items: sound, the ways, what now, the lessons, leaving",
+    (await shown(".place-menu-item")) === 6,
+    "the menu has its six items: the town's pages, sound, the ways, what now, the lessons, leaving",
   );
   await look("06-menu", "the menu open");
   await press(".place-menu-key", "≡ again, to close it");

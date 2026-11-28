@@ -16,6 +16,7 @@ import {
   placePersonRef,
   placeWhyRef,
   placeHelpRef,
+  placeTownRef,
   placeWhatNowRef,
   placedId,
   type BarRead,
@@ -26,6 +27,7 @@ import {
   type PlaceMode,
   type PlaceNotice,
   type PlaceInspect,
+  type PlaceInspectHelp,
   type PlaceOverlay,
   type PlaceWatch,
   type PlacePeopleSheet,
@@ -495,7 +497,8 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
     hud.lesson("alert");
     sendEye(n.id, n.lot);
     const ref = n.id !== null && town ? placePersonRef(town, n.id) : n.ref;
-    if (ref) inspect(ref);
+    // (At a peek, under the alert's words told on a phone: a taller page hides them.)
+    if (ref) inspect(ref, true, false);
   };
 
   /** What the inspector shows, as the hud lays it out: its height, and whether it is open. */
@@ -509,16 +512,17 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
    * The inspector opened on what a ref names (one of its people, a lot; null: closed), and read every half second while
    * it stays open. What the place has no inspector for (a realm's page, a sickness) is the god game's page.
    */
-  const inspect = (ref: string | null, step = true): void => {
+  const inspect = (ref: string | null, step = true, raise = true): void => {
     // (Lessons done by it, G1; and on a phone, the lessons put back from where the page opens.)
     if (ref && /^(plc|folk|person):/.test(ref)) hud.lesson("person");
     if (ref?.startsWith("plci:")) hud.lesson("inside");
+    if (ref && /^plc[tbzyadrsvx]:/.test(ref)) hud.lesson("town");
     if (ref) hud.guideAside();
     stopInspect?.();
     stopInspect = null;
     if (
       ref &&
-      !/^(plc|plcl|plci|plcg|plcb|plcw|plcy|plca|plcf|plcc|plcm|plcs|plcv|plch|plcn|plcq|plcz|plcx|plcd|plcr|folk|person):/.test(
+      !/^(plc|plcl|plci|plcg|plcb|plcw|plcy|plca|plcf|plcc|plcm|plcs|plcv|plch|plcn|plcq|plcz|plcx|plcd|plcr|plct|folk|person):/.test(
         ref,
       )
     ) {
@@ -555,8 +559,19 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
       return;
     }
     const id = placedId(ref);
-    if (/^plc[ligbwyafcmsvhnqzxdr]:/.test(ref)) choose(null);
+    if (/^plc[ligbwyafcmsvhnqzxdrt]:/.test(ref)) choose(null);
     else if (id !== null) choose(id);
+    // (Any page but one of its people opens at half the screen on a phone, U3: at a peek it was cut mid-sentence. Not over
+    // a sheet open, whose place it would take, nor from an alert, whose words are told above a peek.)
+    if (
+      raise &&
+      !hud.desk &&
+      !hud.tab &&
+      inspector.height === "peek" &&
+      id === null &&
+      !/^(folk|person):/.test(ref)
+    )
+      inspector.setHeight("half");
     // (A sheet open under it is kept where the inspector is only peeked; a taller one takes the sheet's place.)
     if (inspector.height !== "peek" && hud.tab) hud.open(null);
     laid();
@@ -1015,11 +1030,31 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
   hud.onLeave = () => void leave();
   hud.onTab = (tab) => sheet(tab);
   hud.onOpen = (ref) => inspect(ref);
-  // (What a sheet, a tab or a page is, in plain words: a page of the inspector's, so Back comes back. G2.)
+  // (What a tab or a page is, in plain words: a page of the inspector's, so Back comes back. G2. A sheet's is told in the
+  // sheet itself: onSheetHelp, U3.)
   const help = (topic: string): void => void (town && inspect(placeHelpRef(town, topic)));
-  hud.onHelp = help;
   // (What now? G3: a page of the inspector's; its Go to sends the eye, its sheet opens the sheet.)
   hud.onWhatNow = () => void (town && inspect(placeWhatNowRef(town)));
+  // (The town's own pages listed, U3: from the foot's Town key and the menu.)
+  hud.onTown = () => void (town && inspect(placeTownRef(town)));
+  // (What a sheet is, told in the sheet itself, U3: read as the inspector's help page is, the same words.)
+  hud.onSheetHelp = (topic) => {
+    const at = town;
+    if (!at) return;
+    void d.client
+      .query<PlaceInspect | null>({
+        type: "place.inspect",
+        args: { ref: at, of: placeHelpRef(at, topic) },
+      })
+      .then(
+        (x) => {
+          // (Still the sheet it was asked of.)
+          if (x?.kind === "help" && town === at && `sheet:${hud.tab}` === topic)
+            hud.sheetHelp(x as PlaceInspectHelp);
+        },
+        () => undefined,
+      );
+  };
   inspector.onGoFor = (g) => {
     sendEye(g.id, g.lot);
   };

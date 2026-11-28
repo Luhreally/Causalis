@@ -3,7 +3,8 @@
 // (≡: sound, the ways to run it, leaving). The paces its day is watched at (⏸, a minute, ten, an hour or a day a second)
 // in a pill of their own under the bar on a phone, in the bar on a desk. An alert column at the right: what wants the
 // manager's eye now, read by the place off what it has (host/placeplan.ts placeNotices), the gravest first, each a tap
-// from going there and opening it. Six tabs at the foot, each opening a sheet: its people, its stocks, its work and the
+// from going there and opening it, a finger held on it telling its words. At the foot the town's own pages (U3), and six
+// tabs, each opening a sheet: its people, its stocks, its work and the
 // orders that move it, what it can raise, what threatens it and the orders against that, and its log. Phone first: every
 // key a finger's size, nothing over anything; on a desk the sheets are docked across the screen between the inspector's
 // place at the left and the alerts at the right. What it shows is told by the page that owns it (app/townplace.ts); it
@@ -143,6 +144,27 @@ const hhmm = (t: number) => {
 };
 /** Whether the page is laid out as a desk's (the stylesheet's own width). */
 const DESK = "(min-width: 900px)";
+/** How long a finger held on an alert's key tells its words without going there (ms; U3). */
+const LONG_PRESS = 450;
+
+/**
+ * A key whose face is a sign given its word under it (U3): a phone shows no title, so a sign alone was a riddle there. The
+ * sign and the word in spans of their own; the key stays a fingertip's size (townplace.css .place-capkey).
+ */
+export function captioned<T extends HTMLElement>(key: T, sign: string, words: string): T {
+  key.classList.add("place-capkey");
+  const face = key.querySelector<HTMLElement>(".place-capkey-sign"),
+    said = key.querySelector<HTMLElement>(".place-capkey-words");
+  if (face && said) {
+    if (face.textContent !== sign) face.textContent = sign;
+    if (said.textContent !== words) said.textContent = words;
+  } else
+    key.replaceChildren(
+      el("span", "place-capkey-sign", sign),
+      el("span", "place-capkey-words", words),
+    );
+  return key;
+}
 
 export class PlaceHud {
   readonly element = el("div", "place-hud");
@@ -169,6 +191,13 @@ export class PlaceHud {
   readonly guide = new PlaceGuide();
   private readonly sheetTitle = el("h2");
   private readonly sheetBody = el("div", "place-sheet-body");
+  /** A sheet's help shown in the sheet itself (U3): its Back key, its ? key, and what the sheet showed, kept to go back to. */
+  private readonly sheetBack = el("button", "place-sheet-back");
+  private readonly sheetHelpKey = el("button", "place-sheet-help");
+  private helpOn = false;
+  private helpKept: Node[] = [];
+  /** The town's own pages (U3): its key at the foot, first. */
+  private readonly townKey = el("button", "place-tab place-tab-town");
   private readonly tabs = new Map<PlaceTab, HTMLButtonElement>();
   private readonly closed = new Set<string>();
   private readonly modeKey = el("button", "place-mode");
@@ -184,8 +213,9 @@ export class PlaceHud {
   private readonly watchText = el("button", "place-watch-text");
   private readonly watchTitle = el("span", "place-watch-title");
   private readonly watchWords = el("span", "place-watch-words");
-  private readonly stayKey = el("button", "place-watch-stay", "📌");
-  private readonly whyKey = el("button", "place-watch-why", "❓");
+  private readonly stayKey = captioned(el("button", "place-watch-stay"), "📌", "Stay");
+  /** (Why the one watched does it, R7: in words, "Why?", not ❓, which elsewhere is the help's ?: U3.) */
+  private readonly whyKey = captioned(el("button", "place-watch-why"), "Why?", "Their reason");
   private captionNow: PlaceCaption | null = null;
   /** How the town is run now, and by whom where its head runs it. */
   ran: PlaceMode = "hand";
@@ -230,8 +260,10 @@ export class PlaceHud {
   onGo: (g: { id: number | null; lot: number | null }) => void = () => {};
   /** Why one of its people does what they do opened (R7). */
   onWhy: (id: number) => void = () => {};
-  /** What a sheet is, asked (G2): its topic. */
-  onHelp: (topic: string) => void = () => {};
+  /** What a sheet is, asked (G2), from the sheet itself (U3): its topic; told back by sheetHelp(). */
+  onSheetHelp: (topic: string) => void = () => {};
+  /** The town's own pages asked for (U3). */
+  onTown: () => void = () => {};
   /** What now? asked (G3). */
   onWhatNow: () => void = () => {};
   /** Its lessons asked for on a phone, or put back (G1): the inspector goes down while they are out. */
@@ -245,7 +277,7 @@ export class PlaceHud {
   private readonly deskQuery = typeof matchMedia === "function" ? matchMedia(DESK) : null;
 
   constructor(root: HTMLElement) {
-    const back = el("button", "place-leave", "◂");
+    const back = captioned(el("button", "place-leave"), "◂", "Leave");
     back.title = "Leave the town to the world: it is kept as it is, and goes on from here";
     back.setAttribute("aria-label", back.title);
     back.onclick = () => this.onLeave();
@@ -262,6 +294,7 @@ export class PlaceHud {
       this.paces.push(b);
       this.pill.append(b);
     }
+    captioned(this.lensKey, "🗺", "Overlays");
     this.lensKey.title = "Overlays on its lots: needs, mood, room, work, age, danger (O)";
     this.lensKey.setAttribute("aria-label", this.lensKey.title);
     this.lensKey.onclick = () => this.setLens(this.lens ? null : "needs");
@@ -281,7 +314,8 @@ export class PlaceHud {
     this.lensBox.append(this.lensChips, this.lensLegend);
     this.lensBox.hidden = true;
     this.modeKey.onclick = () => this.choosing(this.modes.hidden !== false);
-    this.menuKey.title = "Menu: sound, how the town is run, leaving it";
+    captioned(this.menuKey, "≡", "Menu");
+    this.menuKey.title = "Menu: the town's pages, sound, how the town is run, leaving it";
     this.menuKey.setAttribute("aria-label", this.menuKey.title);
     this.menuKey.onclick = () => this.menuOpen(this.menu.hidden !== false);
     this.bar.append(back, id, sky, this.modeKey, this.menuKey);
@@ -360,7 +394,13 @@ export class PlaceHud {
     cardNow.setAttribute("aria-label", "What now? The few things most worth doing next");
     cardNow.onclick = () => this.onWhatNow();
     this.guide.extra.append(cardNow);
-    this.menu.append(this.soundKey, ways, now, lessons, leave);
+    // (The town's own pages, U3: first in the menu too, where a town watched has no tabs at its foot.)
+    const pages = el("button", "place-menu-item place-menu-town", "🏘️  The town's own pages");
+    pages.onclick = () => {
+      this.menuOpen(false);
+      this.townPages();
+    };
+    this.menu.append(pages, this.soundKey, ways, now, lessons, leave);
     this.guide.onLaid = () => this.laidGuide();
     this.menu.hidden = true;
     this.watchText.append(this.watchTitle, this.watchWords);
@@ -372,7 +412,7 @@ export class PlaceHud {
       const id = this.captionNow?.id;
       if (id !== null && id !== undefined) this.onWhy(id);
     };
-    const next = el("button", "place-watch-next", "⏭");
+    const next = captioned(el("button", "place-watch-next"), "⏭", "Next");
     next.title = "On to another of the town";
     next.setAttribute("aria-label", next.title);
     next.onclick = () => this.onNext();
@@ -382,21 +422,39 @@ export class PlaceHud {
     this.notice.append(this.noticeText);
     this.notice.hidden = true;
     const head = el("header", "place-sheet-head"),
-      close = el("button", "place-sheet-shut", "×");
+      close = captioned(el("button", "place-sheet-shut"), "×", "Close");
     close.setAttribute("aria-label", "Close");
     close.onclick = () => this.open(null);
-    // (What this sheet is, in plain words: G2.)
-    const what = el("button", "place-sheet-help", "?");
+    // (What this sheet is, in plain words: G2. Told in the sheet itself, its Back to the sheet, U3: as a page of the
+    // inspector's over the sheet, each had some 150 px of a phone.)
+    const what = captioned(this.sheetHelpKey, "?", "Help");
     what.setAttribute("aria-label", "What is this sheet? In plain words");
     what.title = what.getAttribute("aria-label")!;
-    what.onclick = () => this.tab && this.onHelp(`sheet:${this.tab}`);
-    head.append(this.sheetTitle, what, close);
+    what.onclick = () => {
+      if (!this.tab || this.helpOn) return;
+      this.onSheetHelp(`sheet:${this.tab}`);
+    };
+    captioned(this.sheetBack, "‹", "Back");
+    this.sheetBack.setAttribute("aria-label", "Back to the sheet");
+    this.sheetBack.title = "Back to the sheet";
+    this.sheetBack.hidden = true;
+    this.sheetBack.onclick = () => this.helpBack();
+    head.append(this.sheetBack, this.sheetTitle, what, close);
     this.sheet.append(head, this.sheetBody);
     this.sheetBody.addEventListener("pointerdown", () => (this.held = performance.now() + 800));
     for (const up of ["pointerup", "pointercancel"])
       this.sheetBody.addEventListener(up, () => (this.held = performance.now() + 60));
     this.sheet.hidden = true;
     const foot = el("nav", "place-foot");
+    // (The town's own pages first, U3: before, only a tap on its square's open ground led to them.)
+    this.townKey.append(el("span", "place-tab-icon", "🏘️"), el("span", "place-tab-name", "Town"));
+    this.townKey.dataset.tab = "town";
+    this.townKey.setAttribute(
+      "aria-label",
+      "The town's own pages: below ground, its legends, its gate, its bound, its faith, what it lives on, its works, its beasts",
+    );
+    this.townKey.onclick = () => this.townPages();
+    foot.append(this.townKey);
     for (const [tab, icon, words] of TABS) {
       const b = el("button", "place-tab");
       b.append(el("span", "place-tab-icon", icon), el("span", "place-tab-name", words));
@@ -574,7 +632,7 @@ export class PlaceHud {
             : "by your hand",
       say = `The town is run ${by}. Tap to choose another way`;
     this.ran = mode;
-    this.modeKey.textContent = sign;
+    captioned(this.modeKey, sign, "How run");
     this.modeKey.title = say;
     this.modeKey.setAttribute("aria-label", say);
     for (const [m, b] of this.modeKeys) b.classList.toggle("on", m === mode);
@@ -644,6 +702,7 @@ export class PlaceHud {
     // (A sheet opened in the lessons' place on a phone: they go back till asked for again.)
     if (tab && this.guide.askedFor) this.guide.ask(false);
     this.tab = tab;
+    this.helpLeft();
     this.setting = null;
     this.ordering = null;
     this.drawn = "";
@@ -656,6 +715,67 @@ export class PlaceHud {
     }
     this.onSheet(tab);
     if (tell) this.onTab(tab);
+  }
+  /** The town's own pages asked for (U3): the sheet put away on a phone, as any page taller than a peek takes its place. */
+  private townPages(): void {
+    if (this.tab && !this.desk) this.open(null);
+    if (this.guide.askedFor) this.guide.ask(false);
+    this.onTown();
+  }
+  /** Whether a sheet shows its own help now, in place of what it shows (U3; the look tools). */
+  get sheetHelping(): boolean {
+    return this.helpOn;
+  }
+  /**
+   * What the sheet open is, in plain words, shown in the sheet itself (U3): its body's rows kept aside, the help's words
+   * in their place, ‹ Back at the head's start; what it is read again meanwhile is not drawn till Back.
+   */
+  sheetHelp(x: {
+    readonly name: string;
+    readonly what: string;
+    readonly numbers: readonly (readonly [string, string])[];
+    readonly can: readonly string[];
+  }): void {
+    if (!this.tab) return;
+    if (!this.helpOn) this.helpKept = [...this.sheetBody.childNodes];
+    this.helpOn = true;
+    this.sheetBack.hidden = false;
+    this.sheetHelpKey.disabled = true;
+    this.sheetTitle.textContent = x.name;
+    const body: HTMLElement[] = [el("p", "place-sheet-helpwords place-help-what", x.what)];
+    if (x.numbers.length) {
+      body.push(el("h3", "place-sub", "What the numbers mean"));
+      const box = el("div", "place-insp-facts place-sheet-helpnumbers");
+      for (const [a, b] of x.numbers)
+        box.append(el("span", "place-insp-label", a), el("span", "place-insp-fact", b));
+      body.push(box);
+    }
+    if (x.can.length) {
+      body.push(el("h3", "place-sub", "What you can do here"));
+      const list = el("ul", "place-insp-life");
+      for (const c of x.can) list.append(el("li", "", c));
+      body.push(list);
+    }
+    this.sheetBody.replaceChildren(...body);
+    this.sheetBody.scrollTop = 0;
+  }
+  /** Back from a sheet's help to the sheet, as it was; then drawn again from its next reading. */
+  private helpBack(): void {
+    if (!this.helpOn) return;
+    const kept = this.helpKept;
+    this.helpLeft();
+    if (this.tab) {
+      this.sheetTitle.textContent = TABS.find((x) => x[0] === this.tab)![2];
+      this.sheetBody.replaceChildren(...kept);
+      this.drawn = "";
+      this.onTab(this.tab);
+    }
+  }
+  private helpLeft(): void {
+    this.helpOn = false;
+    this.helpKept = [];
+    this.sheetBack.hidden = true;
+    this.sheetHelpKey.disabled = false;
   }
 
   /** The pace its clock runs at, and the last it ran at (Space starts it again at that). */
@@ -741,14 +861,33 @@ export class PlaceHud {
   private alertKey(n: PlaceNotice): HTMLElement {
     const row = el("div", `place-alert-row level${n.level}`),
       b = el("button", `place-alert level${n.level}`),
-      say = `${LEVEL_WORDS[n.level] ?? ""}: ${n.words}. Tap to go there`;
+      say = `${LEVEL_WORDS[n.level] ?? ""}: ${n.words}. Tap to go there; hold to read it`;
     b.append(el("span", "place-alert-icon", n.icon));
     if (n.n > 0) b.append(el("span", "place-alert-n", n.n > 99 ? "99+" : String(n.n)));
     b.append(el("span", "place-alert-words", n.words));
     b.title = say;
     b.setAttribute("aria-label", say);
     b.dataset.key = n.key;
+    // (Its words reached with no hover, U3: a tap tells them in the notice line on a phone as it goes there; a finger held
+    // on it tells them and goes nowhere.)
+    let timer: ReturnType<typeof setTimeout> | undefined,
+      held = false;
+    const let_ = () => clearTimeout(timer);
+    b.addEventListener("pointerdown", () => {
+      held = false;
+      let_();
+      timer = setTimeout(() => {
+        held = true;
+        this.tell(n);
+      }, LONG_PRESS);
+    });
+    for (const up of ["pointerup", "pointercancel", "pointerleave"]) b.addEventListener(up, let_);
+    b.addEventListener("contextmenu", (e) => e.preventDefault());
     b.onclick = () => {
+      if (held) {
+        held = false;
+        return;
+      }
       if (!this.deskQuery?.matches) this.tell(n);
       this.onAlert(n);
     };
@@ -850,7 +989,7 @@ export class PlaceHud {
    * the one they were for (in WebKit at a phone's size an order key pressed did nothing six times in fourteen).
    */
   people(s: PlacePeopleSheet, own = false): void {
-    if (this.tab !== "people") return;
+    if (this.tab !== "people" || this.helpOn) return;
     if (own) this.drawn = JSON.stringify([s, this.occ]);
     else if ((this.ordering !== null && this.drawn !== "") || this.same([s, this.occ])) return;
     let open: HTMLElement | null = null;
@@ -929,7 +1068,7 @@ export class PlaceHud {
       one.append(row, key);
       // (A pinned one let go of: off the people bar and no longer followed by word.)
       if (r.pinned) {
-        const off = el("button", "place-row-order place-row-unpin", "📌✕"),
+        const off = captioned(el("button", "place-row-order place-row-unpin"), "📌✕", "Unpin"),
           said = `Unpin ${r.name}`;
         off.title = said;
         off.setAttribute("aria-label", said);
@@ -1011,7 +1150,7 @@ export class PlaceHud {
         );
         b.title = `${x.name}: ${x.words}`;
         b.onclick = () => this.onPage(x.ref);
-        const off = el("button", "place-row-order place-row-unpin", "📌✕");
+        const off = captioned(el("button", "place-row-order place-row-unpin"), "📌✕", "Unpin");
         off.title = `Unpin ${x.name}`;
         off.setAttribute("aria-label", off.title);
         off.onclick = () => this.onUnpin(x.ref, null);
@@ -1189,7 +1328,7 @@ export class PlaceHud {
    * its name. Food held back from its households by the granary, a month at a time.
    */
   stocks(s: PlaceStocksSheet): void {
-    if (this.tab !== "stocks" || this.same(s)) return;
+    if (this.tab !== "stocks" || this.helpOn || this.same(s)) return;
     const hold = el("div", "place-line place-hold"),
       less = el("button", "place-step", "−"),
       more = el("button", "place-step", "+");
@@ -1313,7 +1452,12 @@ export class PlaceHud {
 
   /** Its hands by trade and the share of them wanted at each, its priorities by name, its sites and its buildings' work. */
   work(s: PlaceWorkSheet): void {
-    if (this.tab !== "work" || this.same([s, this.setting, this.gridOpen, this.gridOcc])) return;
+    if (
+      this.tab !== "work" ||
+      this.helpOn ||
+      this.same([s, this.setting, this.gridOpen, this.gridOcc])
+    )
+      return;
     const all = s.hands.reduce((a, b) => a + b, 0),
       now = s.hands.map((n) => (all > 0 ? Math.round((1000 * n) / all) : 0)),
       shares = this.setting ?? (s.shares ? [...s.shares] : now),
@@ -1512,7 +1656,7 @@ export class PlaceHud {
   private told = new Set<string>();
   /** What threatens the town, whom it has touched, and the orders against it: each a switch with what it gains and takes. */
   dangers(s: PlaceDangersSheet): void {
-    if (this.tab !== "dangers" || this.same([s, [...this.told]])) return;
+    if (this.tab !== "dangers" || this.helpOn || this.same([s, [...this.told]])) return;
     const body: HTMLElement[] = [];
     if (!s.now.length) body.push(el("p", "place-more", "Nothing threatens the town now."));
     for (const x of s.now) {
@@ -1528,7 +1672,7 @@ export class PlaceHud {
     for (const r of s.responses) {
       const row = el("div", "place-line place-response-row"),
         key = el("button", "place-switch", r.on ? "On ●" : "Off ○"),
-        info = el("button", "place-info", "ⓘ"),
+        info = captioned(el("button", "place-info"), "ⓘ", "In words"),
         chips = el("span", "place-response-chips");
       key.classList.toggle("on", r.on);
       key.setAttribute(
@@ -1609,7 +1753,7 @@ export class PlaceHud {
 
   /** Its log, day by day: what befell many at one hour of one kind is one line, each of them named and a tap away. */
   log(s: PlaceLogSheet): void {
-    if (this.tab !== "log" || this.same(s)) return;
+    if (this.tab !== "log" || this.helpOn || this.same(s)) return;
     const body: HTMLElement[] = [];
     if (s.unsettled > 0)
       body.push(
@@ -1677,15 +1821,14 @@ export class PlaceHud {
         names.append(who);
         // (Go to whom it was of, whom it was with, and where it happened, R7.)
         for (const g of x.go) {
-          const k = el(
-            "button",
-            "place-log-go",
-            g.lot !== null
-              ? "📍"
-              : g.words === `Go to ${x.name}`
-                ? "🎯"
-                : `🎯 ${g.words.replace(/^Go to /, "")}`,
-          );
+          // (A sign alone given its word under it, U3: "Go to".)
+          const alone = g.lot !== null || g.words === `Go to ${x.name}`,
+            k = el(
+              "button",
+              "place-log-go",
+              alone ? undefined : `🎯 ${g.words.replace(/^Go to /, "")}`,
+            );
+          if (alone) captioned(k, g.lot !== null ? "📍" : "🎯", "Go to");
           k.title = g.words;
           k.setAttribute("aria-label", g.words);
           k.onclick = () => this.onGo(g);
@@ -1702,7 +1845,7 @@ export class PlaceHud {
 
   /** What it could raise now and what it would take; what it cannot, each with why; what is going up already. */
   build(o: TownOffers | null): void {
-    if (this.tab !== "build" || this.same(o)) return;
+    if (this.tab !== "build" || this.helpOn || this.same(o)) return;
     if (!o)
       return void this.sheetBody.replaceChildren(
         el("p", "place-more", "Nothing can be raised here."),

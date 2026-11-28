@@ -1,7 +1,21 @@
 // What each of the town mode's sheets, tabs and pages is, in plain words (G2): what it is, what its numbers mean, and
 // what you can do there. A "?" on every sheet and on the inspector opens the one for what is shown, as a page of the
 // inspector's own, so Back comes to where you were. The same for every town: words only.
-import { placeHelpRef, type PlaceInspectHelp } from "../bridge/index.ts";
+import {
+  placeBeastsRef,
+  placeBelowRef,
+  placeBoundRef,
+  placeCivicRef,
+  placeFaithRef,
+  placeGateRef,
+  placeHelpRef,
+  placeLegendsRef,
+  placeLevelsRef,
+  placeMakingRef,
+  placeTownRef,
+  type PlaceInspectHelp,
+  type PlaceInspectTown,
+} from "../bridge/index.ts";
 
 type Help = {
   readonly title: string;
@@ -22,7 +36,17 @@ export const HELP: Readonly<Record<string, Help>> = {
     can: [
       "Tap anyone or any building to open its page.",
       "Use the tabs at the foot for the town as a whole.",
+      "🏘️ Town at the foot lists the town's own pages: below ground, its legends, its gate and more.",
       "≡ holds the lessons, how the town is run, and leaving it.",
+    ],
+  },
+  "page:townpages": {
+    title: "The town's own pages",
+    what: "Everything told of the town as a whole, each a tap away: what lies below it, its legends, who comes to its gate, its bound, its faith, what it lives on, its works and orders, its beasts.",
+    numbers: [],
+    can: [
+      "Tap a row to open that page; ‹ Back comes here again.",
+      "🏘️ Town at the foot, or Town in ≡, brings this list back.",
     ],
   },
   "sheet:people": {
@@ -292,6 +316,76 @@ export const HELP: Readonly<Record<string, Help>> = {
     ],
   },
 };
+
+/**
+ * The town's own pages listed (U3): before, only a tap on its square's open ground led to them. Words and refs alone, the
+ * same for every town: nothing of the world is read, and no place is made by asking.
+ */
+export function placeTownPages(town: string): PlaceInspectTown {
+  return {
+    kind: "townpages",
+    ref: placeTownRef(town),
+    name: "The town's own pages",
+    icon: "🏘️",
+    sub: "Each a tap away; ‹ Back comes here again",
+    pages: [
+      {
+        icon: "⛏️",
+        name: "Below ground",
+        words: "What lies under the town, what is dug, and the water it draws",
+        ref: placeBelowRef(town),
+      },
+      {
+        icon: "🪜",
+        name: "Its ground, level by level",
+        words: "Each depth of its ground, and what is dug at each",
+        ref: placeLevelsRef(town),
+      },
+      {
+        icon: "📜",
+        name: "Its legends",
+        words: "Its works, its battles, the seldomest of what befell it",
+        ref: placeLegendsRef(town),
+      },
+      {
+        icon: "🚪",
+        name: "At the gate",
+        words: "Who has come to the town, and who comes",
+        ref: placeGateRef(town),
+      },
+      {
+        icon: "⛓️",
+        name: "The bound",
+        words: "Its captives, and those its justice holds",
+        ref: placeBoundRef(town),
+      },
+      {
+        icon: "⛩️",
+        name: "Faith and rank",
+        words: "Its faith, its shrines, and those of rank",
+        ref: placeFaithRef(town),
+      },
+      {
+        icon: "⚗️",
+        name: "What it lives on",
+        words: "What it holds, makes, drinks and burns, and what it is short of",
+        ref: placeMakingRef(town),
+      },
+      {
+        icon: "🏛️",
+        name: "Its works and orders",
+        words: "What it is raising, what it may find next, your standing orders",
+        ref: placeCivicRef(town),
+      },
+      {
+        icon: "🐂",
+        name: "Beasts and power",
+        words: "Who keeps its flock, what pulls for it, what drives its works",
+        ref: placeBeastsRef(town),
+      },
+    ],
+  };
+}
 
 /** The topic for what a sheet, a tab or a page is (G2): its own, else the town's. */
 export function helpTopic(of: string): string {
