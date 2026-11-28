@@ -50,6 +50,27 @@ export const PACKAGES: Partial<Record<ModuleName, readonly string[]>> = {
   render: ["playcanvas"],
 };
 
+// Files a lazily fetched mode alone uses, imported by their own path, not through their folder's index.ts: re-exported
+// there they would be bundled into the god game's first chunks, which load before any mode is asked for. Each names the
+// mode that fetches it. Nothing else may be reached into.
+export const LAZY_ONLY: ReadonlyMap<string, string> = new Map([
+  // Live a Line (app/linelazy.ts fetches app/line.ts and what it alone uses).
+  ["src/ui/line-hud.ts", "Live a Line"],
+  ["src/ui/line-guide.ts", "Live a Line"],
+  ["src/ui/line-cell.ts", "Live a Line"],
+  ["src/ui/line-beast.ts", "Live a Line"],
+  ["src/ui/line-pages.ts", "Live a Line"],
+  ["src/render/line-depth.ts", "Live a Line"],
+  ["src/render/line-juice.ts", "Live a Line"],
+  ["src/render/line-nest.ts", "Live a Line"],
+  ["src/render/line-sea.ts", "Live a Line"],
+  ["src/view/line.ts", "Live a Line"],
+  ["src/view/drop-held.ts", "Live a Line"],
+  // (The town's loading screen, shown by the lazy loaders before their chunks come: kept out of the ui index so it stays
+  // in the page's own chunk, beside them.)
+  ["src/ui/place-loading.ts", "the town and Live a Line's loaders"],
+]);
+
 // Modules whose code decides the authoritative history.
 export const DETERMINISTIC: ReadonlySet<ModuleName> = new Set([
   "kernel",
@@ -347,7 +368,7 @@ export function lintBoundaries(file: string, text: string): Violation[] {
         );
         continue;
       }
-      if (target !== `src/${to}/index.ts`)
+      if (target !== `src/${to}/index.ts` && !LAZY_ONLY.has(target))
         report("index", `${spec}: import ${to} through src/${to}/index.ts, not its inside`);
       continue;
     }

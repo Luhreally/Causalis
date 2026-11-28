@@ -70,6 +70,7 @@ import {
   type PartId,
   type Daughter,
   type Gates,
+  sizeTier,
   type LineFacts,
   type LineRung,
   type Traits,
@@ -140,6 +141,10 @@ const HUD_EVERY = 125,
 type Root = { enabled: boolean; children?: unknown[]; camera?: unknown; light?: unknown };
 
 /** `Loading`: the god game's loading screen, handed in (so the page's chunks are as without the mode). */
+/** "a", "a and b", "a, b and c". */
+const andWords = (xs: readonly string[]): string =>
+  xs.length < 2 ? (xs[0] ?? "") : `${xs.slice(0, -1).join(", ")} and ${xs.at(-1)}`;
+
 export function installLine(d: LineDeps, Loading: typeof PlaceLoading): LineFlow {
   const hud = new LineHud(d.hud),
     loading = new Loading(d.hud),
@@ -177,6 +182,8 @@ export function installLine(d: LineDeps, Loading: typeof PlaceLoading): LineFlow
     offered: LineBody[] | null = null,
     pickMs = 0,
     turnMs = 0,
+    /** Of the last turn, the asking of the host (its round trip, the worker's own time in it bounded by tests/host). */
+    askMs = 0,
     /** The meter full when last drawn; food taken when last looked; the eye's breadth across the drop now (µm). */
     wasFull = false,
     ateSeen = 0,
@@ -698,7 +705,8 @@ export function installLine(d: LineDeps, Loading: typeof PlaceLoading): LineFlow
         : null;
     beast ??= new LineCreature(d.stage);
     if (micro) micro.visible = false;
-    document.body.dataset.scale = "ground";
+    // (The sea's ages seen from within the water: the drop's own backdrop, blue-green.)
+    document.body.dataset.scale = sea ? "micro" : "ground";
     const why = beast.begin(plan, b, my, swimmers);
     ateSeen = 0;
     wasFull = false;
@@ -771,7 +779,9 @@ export function installLine(d: LineDeps, Loading: typeof PlaceLoading): LineFlow
         },
       });
     offered = null;
-    const next = bred.line ?? y;
+    askMs = performance.now() - t0;
+    const t1 = performance.now(),
+      next = bred.line ?? y;
     my = to;
     saga.my = my;
     saga.body = next;
@@ -800,7 +810,7 @@ export function installLine(d: LineDeps, Loading: typeof PlaceLoading): LineFlow
       return;
     }
     startBody();
-    turnMs = performance.now() - t0;
+    turnMs = performance.now() - t1;
     hud.say(
       bred.died
         ? `Your line died out in the age between, outdone by its kin: you go on as the nearest of them, ${bred.died.name}`
@@ -900,6 +910,10 @@ export function installLine(d: LineDeps, Loading: typeof PlaceLoading): LineFlow
         );
     }
     noises.ambient(true, beast.danger === null ? 0 : Math.max(0, 1 - beast.danger / 22));
+    // (What hunts it here, told the first time there is anything that does.)
+    const hunted = beast.hunted();
+    if (hunted.by.length && guide.first("hunted"))
+      hud.say(`Hunted here by ${andWords(hunted.by)}: keep clear of them, or bolt`, false);
     const t = beast.told();
     if (t && t.words !== told) {
       told = t.words;
@@ -995,6 +1009,17 @@ export function installLine(d: LineDeps, Loading: typeof PlaceLoading): LineFlow
         parts: [
           fact("Its way", b.name),
           fact("Weight", massText(b.genome.mass)),
+          ...(() => {
+            const tier = sizeTier(b.genome.mass),
+              h = beast?.hunted() ?? { by: [], larger: 0 };
+            return [
+              fact(
+                "Its size",
+                `${tier.words}${tier.next !== null ? ` (the next size up from ${massText(tier.next)})` : ""}; ${h.larger ? `${h.larger} kinds about it are larger` : "nothing about it is larger"}`,
+              ),
+              fact("Hunted by", h.by.length ? andWords(h.by) : "nothing here hunts it"),
+            ];
+          })(),
           fact(
             "Body",
             `${b.body.legs ? `${b.body.legs} pairs of legs` : "no legs"}, ${b.body.fins ? `${b.body.fins} pairs of fins` : "no fins"}, ${b.body.covering} skin, eats ${b.body.eats}`,
@@ -1538,8 +1563,11 @@ export function installLine(d: LineDeps, Loading: typeof PlaceLoading): LineFlow
           offered: offered?.length ?? 0,
           pickMs,
           turnMs,
+          askMs,
           beast: beast?.strip() ?? null,
           beastStepMs: beast?.steps ? beast.stepMs / beast.steps : 0,
+          under: beast?.under ?? null,
+          hunted: beast?.hunted() ?? null,
         };
       },
       /** Fill the cell held to dividing (a look tool's shortcut past the eating). */

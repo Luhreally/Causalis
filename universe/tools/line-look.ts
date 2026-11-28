@@ -346,7 +346,7 @@ for (const view of [
     pickMs: number;
     turnMs: number;
     beastStepMs: number;
-    beast: { x: number; z: number; fed: number } | null;
+    beast: { x: number; z: number; fed: number; ate: number } | null;
   };
   const b0 = (await state()) as Body;
   check(
@@ -363,6 +363,37 @@ for (const view of [
     `the beast went where it was steered (${b0.beast?.x.toFixed(1)},${b0.beast?.z.toFixed(1)} → ${b1.beast?.x.toFixed(1)},${b1.beast?.z.toFixed(1)})`,
   );
   await look("13-body", "the body lived");
+  // —— The shallows seen from within; what hunts it; a bite.
+  type Under = { over: number; eye: number; pool: boolean } | null;
+  const u = (await state()) as unknown as {
+    under: Under;
+    hunted: { by: string[]; larger: number } | null;
+  };
+  if (u.under)
+    check(
+      u.under.eye < u.under.over && !u.under.pool,
+      `under water: the eye ${u.under.eye.toFixed(2)} m over the floor, the water's face at ${u.under.over.toFixed(2)} m, the pool's face put by`,
+    );
+  else say("(not a sea's age: on the land)");
+  say(
+    `hunted by: ${u.hunted?.by.join(", ") || "nothing"}; ${u.hunted?.larger ?? 0} kinds about larger`,
+  );
+  check(
+    /· (a speck|small|middling|large|great),/.test(
+      await k<string>(`document.querySelector(".line-hud")?.textContent ?? ""`),
+    ),
+    "the strip tells the body's size tier",
+  );
+  const ate0 = ((await state()) as Body).beast?.ate ?? 0;
+  if (await pressText(".line-act", /Feed|Eat|Graze|Browse|Peck/, "the eat key")) {
+    await until(
+      "a bite taken",
+      async () => (((await state()) as Body).beast?.ate ?? 0) > ate0,
+      6000,
+    );
+    await page.waitForTimeout(150);
+    await shot("13c-bite");
+  }
   await press(".line-name", "the body's name");
   check((await state()).page === "body", "the body's page opened");
   await look("14-body-page", "the body's page");
@@ -400,7 +431,7 @@ for (const view of [
     await page.waitForTimeout(300);
     await look("14c-nest", "the nest");
     say(
-      `a nest made at ${made.x.toFixed(1)},${made.z.toFixed(1)} (${made.wet ? "its eggs floating where its line lives" : "on the ground"}; ${ways.join(" → ")})`,
+      `a nest made at ${made.x.toFixed(1)},${made.z.toFixed(1)} (${made.wet ? "its eggs in the water where its line lives" : "on the ground"}; ${ways.join(" → ")})`,
     );
     await until(
       "the young one out of the nest",
@@ -434,7 +465,7 @@ for (const view of [
   const b2 = (await state()) as Body;
   check(
     b2.living && b2.turnMs <= 30,
-    `on into the next age: ${b2.body?.name}, ${b2.body?.mass} kg, ${b2.my} My ago (its turn ${b2.turnMs.toFixed(1)} ms)`,
+    `on into the next age: ${b2.body?.name}, ${b2.body?.mass} kg, ${b2.my} My ago (its turn ${b2.turnMs.toFixed(1)} ms on the page, the host asked in ${(b2 as unknown as { askMs: number }).askMs.toFixed(1)} ms)`,
   );
   await look("16-next-age", "the next age");
 

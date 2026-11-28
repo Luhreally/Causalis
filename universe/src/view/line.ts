@@ -62,6 +62,23 @@ export type Traits = {
 };
 
 /** The way a cell of these traits lives in the drop (and is drawn as): the last way it took up. */
+/**
+ * A body's size tier by its weight (kg), each a hundred times the last: what a player grows through, told as words. The
+ * tier's floor (kg) with it, so the next is a hundred times it.
+ */
+export const TIERS: readonly { readonly from: number; readonly words: string }[] = [
+  { from: 0, words: "a speck" },
+  { from: 0.001, words: "small" },
+  { from: 0.1, words: "middling" },
+  { from: 10, words: "large" },
+  { from: 1000, words: "great" },
+];
+export function sizeTier(kg: number): { tier: number; words: string; next: number | null } {
+  let tier = 0;
+  for (let i = 0; i < TIERS.length; i++) if (kg >= TIERS[i]!.from) tier = i;
+  return { tier, words: TIERS[tier]!.words, next: TIERS[tier + 1]?.from ?? null };
+}
+
 export function wayOf(t: Traits): CellWay {
   return t.together ? "colony" : t.nucleus ? "hunter" : t.light ? "light" : t.base;
 }

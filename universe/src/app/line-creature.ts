@@ -8,6 +8,8 @@ import type { BeastPlan, GenesisPlan, MeadowPlan } from "../bridge/index.ts";
 import { BEAST_EYE, FLIER_UP, MeadowScene, PossessEye, type Stage } from "../render/index.ts";
 import type { HudOffer } from "../ui/line-hud.ts";
 import { LineNest } from "../render/line-nest.ts";
+import { SeaView } from "../render/line-sea.ts";
+import { sizeTier } from "../view/line.ts";
 import {
   MEADOW_H,
   MEADOW_STEP,
@@ -17,6 +19,7 @@ import {
   meadowHeld,
   meadowOffers,
   newMeadow,
+  prey,
   stepMeadow,
   type Beast,
   type MeadowState,
@@ -92,6 +95,7 @@ type Nest = {
   size: number;
   eggs: number;
   wet: boolean;
+  bed: boolean;
   t: number;
   laid: boolean;
 };
@@ -125,8 +129,13 @@ export class LineCreature {
   private court: { mate: number; t: number; from: number; fed: number; owed: number } | null = null;
   private nest: Nest | null = null;
   private readonly nestDraw: LineNest;
+  private readonly sea: SeaView;
+  /** In the sea's ages: the eye under water, the floor what all stands on. */
+  private shallows = false;
   /** What the courting is at, for the page: "coming", "courting", "nest" (null: none). */
   courting: "coming" | "courting" | "nest" | null = null;
+  /** The last bite (its time on the meadow's clock), and the meals counted so far. */
+  private bite: { t: number; ate: number } = { t: -1, ate: 0 };
 
   constructor(stage: Stage) {
     this.stage = stage;
@@ -134,6 +143,7 @@ export class LineCreature {
     this.scene.setDetail(2);
     this.eye = new PossessEye(stage);
     this.nestDraw = new LineNest(stage, this.scene.root);
+    this.sea = new SeaView(stage, this.scene.root);
   }
 
   /**
@@ -147,6 +157,7 @@ export class LineCreature {
     sea: readonly MeadowPlan["lineages"][number][] | null,
   ): string | null {
     this.mass = line.genome.mass;
+    this.shallows = !!sea;
     const age = ageOfMy(my),
       lineage = {
         ref: LINE_REF,
@@ -226,6 +237,7 @@ export class LineCreature {
     this.court = null;
     this.nest = null;
     this.courting = null;
+    this.bite = { t: -1, ate: 0 };
     // (Of the shallows' hunter, one only: the first of its kind, the rest let go.)
     const hk = m.kinds.findIndex((x) => x.ref === SHALLOWS_HUNTER);
     this.hunter = { id: -1, grip: 0, fed: 6 };
@@ -306,9 +318,32 @@ export class LineCreature {
     // meadow draws its least beasts larger than life.)
     const drawn = this.scene.sizeOf(LINE_REF);
     if (drawn && Math.abs(drawn - this.eye.height) > 1e-6) this.eye.height = Math.max(0.004, drawn);
+    // (Under water: the water's face well over the eye, the haze closing in some lengths of the eye's reach off.)
+    const reach = this.eye.distance * this.eye.height;
+    this.sea.update(
+      this.shallows && !!held,
+      Math.max(this.eye.stood.y * 1.8, this.eye.height * 6, 1.5),
+      MEADOW_W * 2,
+      reach * 0.6,
+      reach * 6,
+    );
     const c = this.court,
       mate = c && held ? m.beasts.find((x) => x.id === c.mate) : null;
+    if (held && held.h.ate > this.bite.ate) this.bite = { t: m.t, ate: held.h.ate };
+    const since = m.t - this.bite.t,
+      size = Math.max(held?.k.length ?? 0, this.eye.height);
     this.nestDraw.update({
+      bite:
+        held && this.bite.t >= 0 && since < 1
+          ? {
+              x: held.b.x + Math.sin(held.b.heading) * size * 0.5,
+              z: held.b.z + Math.cos(held.b.heading) * size * 0.5,
+              y: size * 0.45,
+              t: since,
+              size,
+              heading: held.b.heading,
+            }
+          : null,
       court:
         c && mate && held && this.courting === "courting"
           ? {
@@ -450,7 +485,7 @@ export class LineCreature {
     z: number,
     size: number,
     wet: boolean,
-  ): { x: number; z: number; size: number; eggs: number; wet: boolean } {
+  ): { x: number; z: number; size: number; eggs: number; wet: boolean; bed: boolean } {
     const m = this.meadow!,
       p = m.pond;
     if (p) {
@@ -476,7 +511,27 @@ export class LineCreature {
           z = s.z + (dz / d) * clear;
         }
       }
-    return { x, z, size, eggs: 3, wet };
+    return { x, z, size, eggs: 3, wet, bed: this.shallows };
+  }
+
+  /**
+   * What about it hunts the line's beast (the names of the kinds whose hunters take its kind, by the meadow's own rule,
+   * and the shallows' hunter where there is one), and how many kinds about are larger than it.
+   */
+  hunted(): { by: string[]; larger: number } {
+    const m = this.meadow,
+      held = m ? meadowHeld(m) : null;
+    if (!m || !held) return { by: [], larger: 0 };
+    const by = m.kinds
+      .filter((k) => k !== held.k && !k.gone && (prey(k, held.k) || k.ref === SHALLOWS_HUNTER))
+      .filter((k) => m.beasts.some((b) => m.kinds[b.kind] === k))
+      .map((k) => k.name);
+    return {
+      by: [...new Set(by)],
+      larger: m.kinds.filter(
+        (k) => k !== held.k && k.size > held.k.size && m.beasts.some((b) => m.kinds[b.kind] === k),
+      ).length,
+    };
   }
 
   /** The beast held made grown and fed, a mate set beside it, and Court pressed (a look tool's shortcut). */
@@ -498,6 +553,14 @@ export class LineCreature {
     if (i < 0) return false;
     this.pressed = i;
     return true;
+  }
+
+  /** Under water: the water's face and the eye's height over the floor (m), and whether the pool's face is put by. */
+  get under(): { over: number; eye: number; pool: boolean } | null {
+    const pool = this.scene.root.findByName("pool") as { enabled?: boolean } | null;
+    return this.sea.over === null
+      ? null
+      : { over: this.sea.over, eye: this.eye.stood.y, pool: !!pool?.enabled };
   }
 
   /** The nest and the courting, for the look tools. */
@@ -598,7 +661,7 @@ export class LineCreature {
     if (!held) return null;
     return {
       // (The line's own weight: the meadow keeps its beasts no lighter than its own least.)
-      words: `${held.k.name} · ${this.mass >= 1 ? `${this.mass.toFixed(1)} kg` : this.mass >= 0.001 ? `${(this.mass * 1000).toFixed(this.mass < 0.01 ? 1 : 0)} g` : `${Math.round(this.mass * 1e6)} mg`} · ${held.b.doing}`,
+      words: `${held.k.name} · ${sizeTier(this.mass).words}, ${this.mass >= 1 ? `${this.mass.toFixed(1)} kg` : this.mass >= 0.001 ? `${(this.mass * 1000).toFixed(this.mass < 0.01 ? 1 : 0)} g` : `${Math.round(this.mass * 1e6)} mg`} · ${held.b.doing}`,
       fed: held.b.energy,
       x: held.b.x,
       z: held.b.z,
@@ -617,6 +680,8 @@ export class LineCreature {
     this.nest = null;
     this.courting = null;
     this.nestDraw.update({ court: null, nest: null });
+    this.sea.update(false, 0, 0, 0, 0);
+    this.shallows = false;
     const lens = this.stage.camera.camera;
     if (lens) {
       lens.nearClip = 0.1;

@@ -533,7 +533,8 @@ function record(s: MeadowState): void {
  * What a hunter of a kind may take: the eaters of grass and leaf, no greater than it can master
  * (a hunter's prey worth the run, a small hunter's the small); never another that eats flesh.
  */
-function prey(h: MeadowKind, p: MeadowKind): boolean {
+/** Whether a beast of kind `h` hunts one of kind `p` (exported for Live a Line's "hunted by": app/line-creature.ts). */
+export function prey(h: MeadowKind, p: MeadowKind): boolean {
   if (p === h || p.feed === "hunt" || p.feed === "small" || p.feed === "scavenge") return false;
   if (p.feed === "swim") return false;
   if (h.feed === "hunt")
