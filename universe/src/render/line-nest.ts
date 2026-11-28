@@ -10,19 +10,40 @@ import type { Stage } from "./stage.ts";
 const M = 0.1,
   TWIGS = 12,
   EGGS = 4,
-  HEARTS = 6;
+  HEARTS = 6,
+  CRUMBS = 7,
+  /** How long a bite's crumbs fly (s). */
+  BITE = 0.55;
 
 export type NestDrawn = {
+  /** A bite just taken: at the mouth (m), how long since (s), the body's drawn size (m), its heading; null: none. */
+  readonly bite?: {
+    x: number;
+    z: number;
+    t: number;
+    size: number;
+    heading: number;
+    y: number;
+  } | null;
   /** The pair's middle while they court (m), or null. */
   readonly court: { x: number; z: number; t: number; size: number } | null;
   /** The nest (m), its size (the line's body length, m), its eggs, whether under water. */
-  readonly nest: { x: number; z: number; size: number; eggs: number; wet: boolean } | null;
+  readonly nest: {
+    x: number;
+    z: number;
+    size: number;
+    eggs: number;
+    wet: boolean;
+    /** Laid on the sea's floor (the shallows seen from within: render/line-sea.ts), not afloat on a pool. */
+    bed: boolean;
+  } | null;
 };
 
 export class LineNest {
   private readonly twigs: InstancedBatch;
   private readonly eggs: InstancedBatch;
   private readonly hearts: InstancedBatch;
+  private readonly crumbs: InstancedBatch;
 
   constructor(stage: Stage, parent: pc.Entity) {
     const rod = cylinderMesh(stage, 0.5, 1, 6),
@@ -30,6 +51,7 @@ export class LineNest {
     this.twigs = new InstancedBatch(stage, rod, [0.45, 0.33, 0.2], TWIGS, parent);
     this.eggs = new InstancedBatch(stage, ball, [0.93, 0.9, 0.8], EGGS, parent);
     this.hearts = new InstancedBatch(stage, ball, [1, 0.45, 0.62], HEARTS, parent);
+    this.crumbs = new InstancedBatch(stage, ball, [0.62, 0.78, 0.36], CRUMBS, parent);
   }
 
   update(d: NestDrawn): void {
@@ -53,7 +75,7 @@ export class LineNest {
         const a = i * 2.4;
         out[0] = n.x * M + Math.cos(a) * r * 0.35;
         // (On the ground; a water life's float, as spawn does, just above the pool's face: render/meadow.ts 0.027.)
-        out[1] = n.wet ? 0.027 + e * 0.3 : e * 0.55;
+        out[1] = n.wet && !n.bed ? 0.027 + e * 0.3 : e * 0.55;
         out[2] = n.z * M + Math.sin(a) * r * 0.35;
         out[3] = out[5] = e;
         out[4] = e * 1.25;
@@ -74,11 +96,29 @@ export class LineNest {
         out[3] = out[4] = out[5] = h * (1 - p * 0.8);
       });
     } else this.hearts.set(0, () => {});
+    // (A bite: crumbs thrown up and out from the mouth, falling back and shrinking away, none below the ground.)
+    const b = d.bite;
+    if (b && b.t < BITE) {
+      const p = b.t / BITE,
+        c = Math.max(0.004, b.size * 0.07 * M) * (1 - p * 0.7);
+      this.crumbs.set(CRUMBS, (i, out) => {
+        const a = b.heading + (i / CRUMBS - 0.5) * 2.4,
+          out1 = b.size * 0.5 * p * M;
+        out[0] = b.x * M + Math.sin(a) * out1;
+        out[1] = Math.max(
+          c / 2,
+          b.y * M + b.size * M * (0.6 * p - 1.1 * p * p) * (0.6 + (i % 3) * 0.2),
+        );
+        out[2] = b.z * M + Math.cos(a) * out1;
+        out[3] = out[4] = out[5] = c;
+      });
+    } else this.crumbs.set(0, () => {});
   }
 
   destroy(): void {
     this.twigs.destroy();
     this.eggs.destroy();
     this.hearts.destroy();
+    this.crumbs.destroy();
   }
 }

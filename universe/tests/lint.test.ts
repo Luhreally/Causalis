@@ -68,3 +68,13 @@ test("boundaries: forbidden directions, packages and platforms are caught", () =
   assert.deepEqual(bounds("src/kernel/a.ts", 'import { a } from "./b";'), ["extension"]);
   assert.deepEqual(bounds("src/kernel/a.ts", 'import { a } from "../../tools/x.ts";'), ["outside"]);
 });
+
+test("boundaries: a lazy mode's own files may be reached into by their path, and no others", () => {
+  assert.deepEqual(bounds("src/app/line.ts", 'import { LineHud } from "../ui/line-hud.ts";'), []);
+  assert.deepEqual(bounds("src/app/line.ts", 'import { a } from "../render/line-nest.ts";'), []);
+  assert.deepEqual(bounds("src/app/line.ts", 'import { a } from "../ui/words.ts";'), ["index"]);
+  // (Still within the boundaries: a lazy file of render is no more reachable from view than any of render.)
+  assert.deepEqual(bounds("src/view/a.ts", 'import { a } from "../render/line-nest.ts";'), [
+    "boundary",
+  ]);
+});

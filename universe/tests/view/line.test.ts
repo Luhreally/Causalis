@@ -31,6 +31,7 @@ import {
   whatNow,
   type LineRung,
   type Traits,
+  sizeTier,
 } from "../../src/view/line.ts";
 import type { Block, DropKind } from "../../src/bridge/index.ts";
 
@@ -428,4 +429,13 @@ test("a cell with a nucleus calls a mate when it is full; the mate swims to it, 
   h2.act = "divide";
   stepHeld(s2, h2);
   assert.ok(h2.dividing && !h2.mated);
+});
+
+test("a body's size tier goes up a hundredfold a tier, and says the next", () => {
+  assert.equal(sizeTier(0.0004).words, "a speck");
+  assert.equal(sizeTier(0.004).words, "small");
+  assert.equal(sizeTier(0.004).next, 0.1);
+  assert.equal(sizeTier(0.1).words, "middling");
+  assert.equal(sizeTier(50).words, "large");
+  assert.deepEqual(sizeTier(5000), { tier: 4, words: "great", next: null });
 });
