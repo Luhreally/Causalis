@@ -742,9 +742,19 @@ function wholeOf(
       byYear.set(key, m);
     };
   for (const e of kept) {
+    const type = e.type;
+    // (Only the kinds read below: an event gone cold reads its data from its block, and most are of none of them.)
+    if (
+      type !== "war.battle" &&
+      type !== "war.strike" &&
+      type !== "war.declared" &&
+      type !== "people.famine" &&
+      type !== "health.outbreak"
+    )
+      continue;
     const year = yearOfMoment(e.t),
       d = e.data as { fallen?: number; dead?: number; people?: number } | null;
-    if (e.type === "war.battle" || e.type === "war.strike") {
+    if (type === "war.battle" || type === "war.strike") {
       const war = e.subjects.find((s) => s.startsWith("war:"));
       if (!war) continue;
       const dead = (e.type === "war.battle" ? d?.fallen : d?.dead) ?? 0;
@@ -1346,6 +1356,16 @@ class ToldYears {
 
 const KEPT = new WeakMap<World, Annals>();
 
+/**
+ * What annalsOf last read of a world's log, as of its epoch (kernel/history.ts: it rises when an event goes cold, is
+ * forgotten, or the log is loaded anew): the events it tells, in the log's order, and by year. Read again from the start only
+ * once the epoch has moved (a forgetting a decade, and a block gone cold); each year else, only the year's new events.
+ */
+const SCANNED = new WeakMap<
+  World,
+  { epoch: number; count: number; kept: HistoryEvent[]; byYear: Map<number, HistoryEvent[]> }
+>();
+
 const stampOf = (world: World) => {
   const n = world.events.count;
   return `${n}:${n ? world.events.at(n - 1).id : ""}`;
@@ -1358,18 +1378,34 @@ export function annalsOf(world: World): Annals {
   if (was?.stamp === stamp) return was;
   const log = world.events,
     n = log.count,
-    byYear = new Map<number, HistoryEvent[]>(),
-    kept: HistoryEvent[] = [];
-  for (let i = 0; i < n; i++) {
+    // (While no row of the log has moved, it has only grown at its end: what was read of it stands, and only the new is read.)
+    was2 = SCANNED.get(world),
+    on = was2 !== undefined && was2.epoch === log.epoch && was2.count <= n,
+    scan = on
+      ? { epoch: log.epoch, count: n, kept: was2.kept, byYear: new Map(was2.byYear) }
+      : {
+          epoch: log.epoch,
+          count: n,
+          kept: [] as HistoryEvent[],
+          byYear: new Map<number, HistoryEvent[]>(),
+        },
+    { kept } = scan,
+    grown = new Set<number>();
+  for (let i = on ? was2.count : 0; i < n; i++) {
     const e = log.at(i);
     if (RULES[e.type]?.[1] === 0) continue;
     kept.push(e);
-    const y = yearOfMoment(e.t),
-      list = byYear.get(y);
+    const y = yearOfMoment(e.t);
+    let list = scan.byYear.get(y);
+    // (A year's list an annals made before holds is never added to: a page may still be reading that one.)
+    if (list && on && !grown.has(y)) scan.byYear.set(y, (list = list.slice()));
     if (list) list.push(e);
-    else byYear.set(y, [e]);
+    else scan.byYear.set(y, [e]);
+    grown.add(y);
   }
-  const whole = wholeOf(world, kept);
+  SCANNED.set(world, scan);
+  const whole = wholeOf(world, kept),
+    byYear = new Map(scan.byYear);
   for (const year of whole.bare.keys()) if (!byYear.has(year)) byYear.set(year, []);
   const told = new ToldYears([...byYear.keys()], (year) =>
     tellYear(world, year, byYear.get(year)!, whole).filter((t) => t.worth >= KIND_WORTH),
