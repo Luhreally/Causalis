@@ -103,21 +103,58 @@ type Happening = { readonly year: number; readonly land: number | null; readonly
  * forgotten ones by the middle of the decade they were folded into — oldest first.
  */
 function happenings(world: World, types: readonly string[]): Map<string, Happening[]> {
-  const out = new Map<string, Happening[]>(types.map((t) => [t, []]));
-  for (const e of world.events.all()) {
-    const list = out.get(e.type);
+  const log = world.events,
+    asked = types.join(" ");
+  let r = happeningsRead.get(log);
+  if (!r || r.epoch !== log.epoch || r.asked !== asked) {
+    r = {
+      epoch: log.epoch,
+      asked,
+      read: 0,
+      live: new Map(types.map((t) => [t, []])),
+      folded: new Map(),
+    };
+    happeningsRead.set(log, r);
+    // (Only the folded counts of these types: making every summary of every type cost more than the rest.)
+    for (const c of log.countsOf(new Set(types))) {
+      if (!c.n) continue;
+      let list = r.folded.get(c.type);
+      if (!list) r.folded.set(c.type, (list = []));
+      const h = { year: c.decade * 10 + 5, land: landOfPlace(c.place as Ref), ref: null };
+      for (let i = 0; i < c.n; i++) list.push(h);
+    }
+  }
+  // (While no row has moved, the log has only grown at its end: what is read of it stands.)
+  for (const n = log.count; r.read < n; r.read++) {
+    const e = log.at(r.read),
+      list = r.live.get(e.type);
     if (list) list.push({ year: yearAt(e.t), land: landOfPlace(e.place), ref: e.id });
   }
-  // (Only the folded counts of these types: making every summary of every type cost more than the rest.)
-  for (const c of world.events.countsOf(new Set(types))) {
-    if (!c.n) continue;
-    const list = out.get(c.type)!,
-      h = { year: c.decade * 10 + 5, land: landOfPlace(c.place as Ref), ref: null };
-    for (let i = 0; i < c.n; i++) list.push(h);
+  const out = new Map<string, Happening[]>();
+  for (const t of types) {
+    const list = [...r.live.get(t)!, ...(r.folded.get(t) ?? [])];
+    list.sort((a, b) => a.year - b.year);
+    out.set(t, list);
   }
-  for (const list of out.values()) list.sort((a, b) => a.year - b.year);
   return out;
 }
+
+/**
+ * What happenings has read of a log while none of its rows has moved (its epoch: an event gone cold, forgotten, or the log
+ * loaded anew): the live events of each type asked in the log's order as far as `read`, and the folded counts of those
+ * types, which change only when events are forgotten. The alerts read the world's firsts each year, and every event each
+ * time was the most of it. Only a reading: nothing depends on it.
+ */
+const happeningsRead = new WeakMap<
+  World["events"],
+  {
+    epoch: number;
+    asked: string;
+    read: number;
+    live: Map<string, Happening[]>;
+    folded: Map<string, Happening[]>;
+  }
+>();
 
 /** The world's people, year by year (the years history keeps: each of the last century, then fewer). */
 function worldPeople(world: World): { x: number; y: number }[] {
@@ -156,6 +193,18 @@ type Knowing = {
   readonly found: boolean;
 };
 
+/** Whether a knowing's event was its finding, kept by event while no row of the log has moved (a forgotten one is not). */
+const foundKept = new WeakMap<World["events"], { epoch: number; found: Map<Ref, boolean> }>();
+function foundHere(world: World, event: Ref): boolean {
+  const log = world.events;
+  let kept = foundKept.get(log);
+  if (!kept || kept.epoch !== log.epoch)
+    foundKept.set(log, (kept = { epoch: log.epoch, found: new Map() }));
+  let found = kept.found.get(event);
+  if (found === undefined) kept.found.set(event, (found = log.get(event)?.type === "lore.found"));
+  return found;
+}
+
 function knowings(world: World): Map<string, Knowing[]> {
   const ctx = populationContext(world),
     lore = loreOf(world),
@@ -168,7 +217,7 @@ function knowings(world: World): Map<string, Knowing[]> {
         year: k.year,
         land: p.cell,
         event: k.event,
-        found: world.events.get(k.event)?.type === "lore.found",
+        found: foundHere(world, k.event),
       });
     }
   for (const list of out.values()) list.sort((a, b) => a.year - b.year || a.land - b.land);
