@@ -206,11 +206,11 @@ export function canMake(ctx: PopulationContext, p: Province, m: Market, r: Recip
  * of each, its home-made, its crafts open and its prices; nothing the year does between reaches what it reads: what a land
  * knows, makes, carries and digs is changed in systems of its own, and a lode found out only when the year's digging is done.)
  */
-const CAN_MAKE = new WeakMap<Market, { t: number; can: Int8Array }>();
 function canMakeNow(ctx: PopulationContext, p: Province, m: Market, i: number): boolean {
-  const t = ctx.world.now;
-  let kept = CAN_MAKE.get(m);
-  if (!kept || kept.t !== t) CAN_MAKE.set(m, (kept = { t, can: new Int8Array(RECIPES.length) }));
+  const t = ctx.world.now,
+    all = marketsOf(ctx.world).canMakeKept;
+  let kept = all.get(p.cell);
+  if (!kept || kept.t !== t) all.set(p.cell, (kept = { t, can: new Int8Array(RECIPES.length) }));
   const was = kept.can[i]!;
   if (was !== 0) return was > 0;
   const can = canMake(ctx, p, m, RECIPES[i]!);

@@ -726,21 +726,23 @@ type FoodRows = {
   readonly table: number[];
   readonly improved: number[];
 };
-const FOOD_ROWS = new WeakMap<World, FoodRows>();
 const FOOD_STORES = [LEISURE_STORE, UNABLE_STORE, TABLE_STORE, HOLDINGS_STORE];
 function foodRows(world: World): FoodRows | null {
   const stores = FOOD_STORES.map((n) => societyStore(world, n));
   // (A store that counts no changes, or none kept at all: each read as it is asked.)
   if (stores.some((x) => x !== null && !(x instanceof CountedRows))) return null;
+  // (Kept on the first of them the world holds: none, nothing to read.)
+  const anchor = stores.find((x) => x !== null) as CountedRows | undefined;
+  if (!anchor) return null;
   const changes = stores.map((x) => (x as CountedRows | null)?.changes ?? -1);
-  let kept = FOOD_ROWS.get(world);
+  let kept = anchor.readerKept as FoodRows | null;
   if (
     !kept ||
     kept.stores.some((x, i) => x !== stores[i]) ||
     kept.changes.some((c, i) => c !== changes[i])
   ) {
     kept = { stores, changes, days: [], table: [], improved: [] };
-    FOOD_ROWS.set(world, kept);
+    anchor.readerKept = kept;
   }
   return kept;
 }
@@ -751,10 +753,14 @@ function foodRows(world: World): FoodRows | null {
  * land, was a twentieth slower at 1,450.)
  */
 /** A land's draw key, its ref's hash: read once a land, not once a land and month. */
-const LAND_KEYS = new WeakMap<Province, number>();
+const LAND_KEYS = new Map<string, number>();
 function landKey(p: Province): number {
-  let k = LAND_KEYS.get(p);
-  if (k === undefined) LAND_KEYS.set(p, (k = refHash(p.ref)));
+  let k = LAND_KEYS.get(p.ref);
+  if (k === undefined) {
+    // (Of the ref alone, the same in every world: let go now and then, as worlds come and go.)
+    if (LAND_KEYS.size >= 1 << 16) LAND_KEYS.clear();
+    LAND_KEYS.set(p.ref, (k = refHash(p.ref)));
+  }
   return k;
 }
 

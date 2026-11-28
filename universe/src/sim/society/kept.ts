@@ -137,6 +137,8 @@ export const SOCIETY_STORES: readonly (readonly [string, number])[] = [
  */
 export class CountedRows extends RowStore {
   changes = 0;
+  /** What a reader keeps of the rows by their changes, on the world's own store (population/systems.ts: foodRows). Not saved. */
+  readerKept: unknown = null;
   override set(key: string | number, row: readonly number[]): void {
     this.changes++;
     super.set(key, row);

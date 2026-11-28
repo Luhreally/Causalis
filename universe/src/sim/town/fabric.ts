@@ -389,24 +389,26 @@ export class TownStore implements StateStore {
   }
   /** How many times a fabric has been added or the store loaded: what fabricsOf keeps its lists by. Not hashed, not saved. */
   private added = 0;
-  private readonly lists = new WeakMap<
-    readonly Settlement[],
-    { n: number; at: number; pairs: [Settlement, Fabric][] }
+  /** By a land's cell: the list it was read from (as SettlementStore.kept holds it), how long, at which add, and the pairs. */
+  private readonly lists = new Map<
+    number,
+    { list: readonly Settlement[]; n: number; at: number; pairs: [Settlement, Fabric][] }
   >();
   /**
-   * The settlements of a list (a land's, as SettlementStore.kept holds it) that have a fabric, each with it (as of), in the
-   * list's order: kept until a fabric is added or the store loaded, or the list grows (a land's list only grows). A land's
-   * hamlets have none, and asking each of them by of was most of the roofless's year.
+   * The settlements of a land's list (`cell`'s, as SettlementStore.kept holds it) that have a fabric, each with it (as of), in
+   * the list's order: kept until a fabric is added or the store loaded, or the list grows or is another (a land's list only
+   * grows). A land's hamlets have none, and asking each of them by of was most of the roofless's year.
    */
-  fabricsOf(list: readonly Settlement[]): readonly [Settlement, Fabric][] {
-    const kept = this.lists.get(list);
-    if (kept && kept.n === list.length && kept.at === this.added) return kept.pairs;
+  fabricsOf(cell: number, list: readonly Settlement[]): readonly [Settlement, Fabric][] {
+    const kept = this.lists.get(cell);
+    if (kept && kept.list === list && kept.n === list.length && kept.at === this.added)
+      return kept.pairs;
     const pairs: [Settlement, Fabric][] = [];
     for (const s of list) {
       const f = this.of(s);
       if (f) pairs.push([s, f]);
     }
-    this.lists.set(list, { n: list.length, at: this.added, pairs });
+    this.lists.set(cell, { list, n: list.length, at: this.added, pairs });
     return pairs;
   }
   /** A settlement's fabric (as get, by the settlement). */
