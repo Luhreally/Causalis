@@ -5,6 +5,9 @@ import type { Port, ToHost, ToMain } from "../bridge/index.ts";
 import { SimHost } from "./host.ts";
 import { IndexedDbByteStore } from "./storage.ts";
 import { UNIVERSES } from "./universes.ts";
+import { lineFrom } from "./saga.ts";
+
+lineFrom(() => import("./line.ts").then((m) => m.ask));
 
 type WorkerScope = {
   postMessage(message: unknown, transfer: Transferable[]): void;

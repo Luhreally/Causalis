@@ -188,7 +188,11 @@ body.lining > *:not(#app) {
   inset: 0;
   pointer-events: none;
   opacity: 0;
-  background: radial-gradient(ellipse at center, rgba(255, 40, 30, 0) 45%, rgba(255, 40, 30, 0.55) 100%);
+  background: radial-gradient(
+    ellipse at center,
+    rgba(255, 40, 30, 0) 45%,
+    rgba(255, 40, 30, 0.55) 100%
+  );
   transition: opacity 0.12s;
 }
 .line-goes-on {
@@ -532,6 +536,7 @@ body.lining > *:not(#app) {
 .line-hud .line-daughter.took {
   border-color: #f2c14e;
 }
+.line-beast-pic,
 .line-cell-pic {
   float: right;
   margin: 0 0 4px 8px;

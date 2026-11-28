@@ -33,9 +33,27 @@ export type LineBody = {
 
 /** The meadow's way of feeding a line's way takes (its niche there). */
 export function nicheOf(way: string, diet: string): string {
-  if (["sea swimmer", "sea crawler", "burrower", "drifter", "swimmer"].includes(way)) return "swimmer";
-  if (["grazer", "browser", "great beast", "seed-eater", "hunter", "small hunter", "scavenger"].includes(way)) return way;
-  return diet === "flesh" ? "small hunter" : diet === "seeds" ? "seed-eater" : diet === "leaves" ? "browser" : "grazer";
+  if (["sea swimmer", "sea crawler", "burrower", "drifter", "swimmer"].includes(way))
+    return "swimmer";
+  if (
+    [
+      "grazer",
+      "browser",
+      "great beast",
+      "seed-eater",
+      "hunter",
+      "small hunter",
+      "scavenger",
+    ].includes(way)
+  )
+    return way;
+  return diet === "flesh"
+    ? "small hunter"
+    : diet === "seeds"
+      ? "seed-eater"
+      : diet === "leaves"
+        ? "browser"
+        : "grazer";
 }
 
 /** The age (0 … 15) a moment falls in, millions of years ago (gen/deeptime.ts: sixteen ages of 25 million years). */
@@ -45,6 +63,17 @@ export function ageOfMy(my: number): number {
 
 /** The most beasts in the shallows (the meadow's own bound is 130). */
 const SHALLOWS_MOST = 60;
+
+/**
+ * The shallows' hunter (S3b's danger): the largest of its sea's lines, at least twice the line's beast (or, where its
+ * sea has none so large, one of the line's own body four times its weight: what a line's kin grows into to eat it). It
+ * senses the beast within SENSE metres, swims to it faster than the beast swims but slower than it bolts, and takes it
+ * when it has held it GRIP seconds; fed, it swims off a while.
+ */
+const SHALLOWS_HUNTER = "line:hunter",
+  SENSE = 22,
+  GRIP = 1.1;
+export const HUNTER_NAME = "a hunter of the shallows";
 
 /** The line's lineage's ref in the meadow. */
 export const LINE_REF = "line:held";
@@ -65,6 +94,10 @@ export class LineCreature {
   /** What the step cost (ms) and how many, for the look tools. */
   stepMs = 0;
   steps = 0;
+  /** The shallows' hunter: its beast's id, how long it has held the line's beast, how long it is fed. */
+  private hunter = { id: -1, grip: 0, fed: 0 };
+  /** Whether the shallows' hunter is near (m; null: none), for the page. */
+  danger: number | null = null;
 
   constructor(stage: Stage) {
     this.stage = stage;
@@ -77,7 +110,12 @@ export class LineCreature {
    * The line's beast put into its age's living world: the plan's lineages of that age, the line's own among them. In the
    * sea's ages (`shallows`), the whole ground under water and `sea` the sea's own lines about it.
    */
-  begin(plan: GenesisPlan, line: LineBody, my: number, sea: readonly MeadowPlan["lineages"][number][] | null): string | null {
+  begin(
+    plan: GenesisPlan,
+    line: LineBody,
+    my: number,
+    sea: readonly MeadowPlan["lineages"][number][] | null,
+  ): string | null {
     const age = ageOfMy(my),
       lineage = {
         ref: LINE_REF,
@@ -91,7 +129,30 @@ export class LineCreature {
         words: line.name,
       },
       // (The line's own first: where the meadow takes only so many lineages of a way, the newest first, it is among them.)
-      others = sea ? sea.map((l) => ({ ...l, arose: age, died: null })) : plan.lineages,
+      big = sea
+        ? (sea
+            .filter((l) => (l.body?.size ?? 0) >= line.genome.mass * 2)
+            .sort((a, b) => b.body!.size - a.body!.size)[0] ?? null)
+        : null,
+      hunterBody = big?.body ?? { ...line.body, size: line.genome.mass * 4 },
+      hunter = sea
+        ? [
+            {
+              ref: SHALLOWS_HUNTER,
+              name: HUNTER_NAME,
+              niche: "swimmer",
+              arose: age,
+              died: null,
+              size: hunterBody.size,
+              level: 2,
+              body: hunterBody,
+              words: null,
+            },
+          ]
+        : [],
+      others = sea
+        ? [...sea.map((l) => ({ ...l, arose: age, died: null })), ...hunter]
+        : plan.lineages,
       lineages = [lineage, ...others],
       look = plan.lifeLook ? { lifeLook: plan.lifeLook } : {},
       p: MeadowPlan = { seed: plan.seed, ages: plan.ages, lineages, ...look },
@@ -131,6 +192,14 @@ export class LineCreature {
     if (!h) return "your line's beast is not to be had";
     this.young = 0;
     this.owed = 0;
+    // (Of the shallows' hunter, one only: the first of its kind, the rest let go.)
+    const hk = m.kinds.findIndex((x) => x.ref === SHALLOWS_HUNTER);
+    this.hunter = { id: -1, grip: 0, fed: 6 };
+    if (hk >= 0) {
+      const of = m.beasts.filter((x) => x.kind === hk);
+      for (const x of of.slice(1)) m.beasts.splice(m.beasts.indexOf(x), 1);
+      if (of[0]) this.hunter.id = of[0].id;
+    }
     const held = meadowHeld(m)!;
     this.eye.height = Math.max(0.6, this.scene.sizeOf(LINE_REF) ?? held.k.length * 0.6);
     this.eye.pitch = BEAST_EYE.pitch;
@@ -162,6 +231,7 @@ export class LineCreature {
           h.run = Math.hypot(this.stick.x, this.stick.y) > 0.92;
         }
         stepMeadow(m);
+        this.hunt(MEADOW_STEP);
         this.owed -= MEADOW_STEP;
         n++;
       }
@@ -178,6 +248,64 @@ export class LineCreature {
       this.eye.update(held.b.x, held.b.z, null, dt, this.lift);
     }
     this.scene.update(m, this.bodies);
+  }
+
+  /** The shallows' hunter's step: to the line's beast where it senses it, gripping it, taking it. */
+  private hunt(dt: number): void {
+    const m = this.meadow,
+      held = m ? meadowHeld(m) : null,
+      o = m?.beasts.find((x) => x.id === this.hunter.id);
+    this.danger = null;
+    if (!m || !held || !o) return;
+    const dx = held.b.x - o.x,
+      dz = held.b.z - o.z,
+      d = Math.hypot(dx, dz) || 1,
+      reach = 0.6 * (o.kind >= 0 ? (m.kinds[o.kind]?.length ?? 1) : 1) + 0.5 * held.k.length;
+    if (this.hunter.fed > 0) {
+      this.hunter.fed -= dt;
+      return;
+    }
+    if (d > SENSE) {
+      this.hunter.grip = Math.max(0, this.hunter.grip - dt);
+      return;
+    }
+    this.danger = d;
+    // (Faster than the beast swims, slower than it bolts.)
+    const v = held.k.walk * 1.6,
+      step = Math.min(Math.max(0, d - reach * 0.8), v * dt);
+    o.heading = Math.atan2(dx, dz);
+    o.x += (dx / d) * step;
+    o.z += (dz / d) * step;
+    o.doing = "chasing";
+    if (d <= reach) {
+      this.hunter.grip += dt;
+      if (this.hunter.grip >= GRIP) {
+        held.h.ended = "taken";
+        held.h.by = HUNTER_NAME;
+        m.beasts.splice(m.beasts.indexOf(held.b), 1);
+        this.hunter = { ...this.hunter, grip: 0, fed: 20 };
+      }
+    } else this.hunter.grip = Math.max(0, this.hunter.grip - dt * 0.5);
+  }
+
+  /** How much of the line's beast is left to the shallows' hunter's grip (1: free). */
+  get whole(): number {
+    return 1 - this.hunter.grip / GRIP;
+  }
+
+  /** The hand gone on into another of the line's own kind about it (false: none is left there). */
+  kin(): boolean {
+    const m = this.meadow;
+    if (!m) return false;
+    const k = m.kinds.findIndex((x) => x.ref === LINE_REF),
+      was = m.hand?.id,
+      b = m.beasts.find((x) => x.kind === k && x.doing !== "coming" && x.id !== was);
+    if (!b) return false;
+    m.hand = null;
+    if (!holdMeadow(m, b.id)) return false;
+    this.young = 0;
+    this.eye.behind(b.heading, true);
+    return true;
   }
 
   /** The eye turned by a drag (px), or stood off. */

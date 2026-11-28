@@ -6,7 +6,11 @@ import { PageHistory } from "./page-history.ts";
 import { el } from "./why.ts";
 
 /** A page: its title, its parts, and the help page its ? opens (none: no ?). */
-export type LinePage = { readonly title: string; readonly parts: readonly HTMLElement[]; readonly help?: string };
+export type LinePage = {
+  readonly title: string;
+  readonly parts: readonly HTMLElement[];
+  readonly help?: string;
+};
 
 export class LinePages {
   readonly element = el("div", "line-page");
@@ -56,7 +60,10 @@ export class LinePages {
 
   /** A page opened after the one open (what was ahead let go): the same page again keeps its place. */
   open(ref: string): void {
-    const { visit, again } = this.history.open(ref, this.ref ? { scroll: this.body.scrollTop } : null);
+    const { visit, again } = this.history.open(
+      ref,
+      this.ref ? { scroll: this.body.scrollTop } : null,
+    );
     this.draw(visit.ref, again ? (visit.view?.scroll ?? this.body.scrollTop) : 0);
   }
 
@@ -95,7 +102,8 @@ export class LinePages {
 }
 
 /** A paragraph of plain words. */
-export const para = (text: string, className = "line-para"): HTMLElement => el("p", className, text);
+export const para = (text: string, className = "line-para"): HTMLElement =>
+  el("p", className, text);
 
 /** A row of a fact: its label and its words (each part a string or a link). */
 export function fact(label: string, ...value: (string | HTMLElement)[]): HTMLElement {

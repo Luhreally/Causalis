@@ -32,7 +32,13 @@ const MOST_OF: Readonly<Record<Way, number>> = {
 const MOST_MOTES = 360;
 
 /** How fast each kind moves (µm a second) and what it spends to keep alive, by its size. */
-export const SPEED: Readonly<Record<Way, number>> = { eater: 14, light: 3, hunter: 7, colony: 4, rock: 3 };
+export const SPEED: Readonly<Record<Way, number>> = {
+  eater: 14,
+  light: 3,
+  hunter: 7,
+  colony: 4,
+  rock: 3,
+};
 export const UPKEEP: Readonly<Record<Way, number>> = {
   eater: 0.03,
   light: 0.025,

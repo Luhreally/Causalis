@@ -6,7 +6,8 @@
 // fainter: blurred), placed by keyed draws and drifting slowly. Everything here is the mode's own, laid on the stage only
 // while a line is lived.
 import * as pc from "playcanvas";
-import { InstancedBatch, flatMaterial, type Rgb, type Stage } from "../render/index.ts";
+import { InstancedBatch } from "./batch.ts";
+import { flatMaterial, type Rgb, type Stage } from "./stage.ts";
 
 /** A larger life of the water: its size (µm) and colour. */
 export type Beyond = { readonly size: number; readonly color: Rgb };
@@ -48,8 +49,22 @@ export class DepthLayer {
         b?.core.destroy();
         b?.halo.destroy();
         b = {
-          core: new InstancedBatch(this.stage, this.mesh, l.color, EACH, this.root, flatMaterial(l.color, 0.2, 0, 0)),
-          halo: new InstancedBatch(this.stage, this.mesh, l.color, EACH, this.root, flatMaterial(l.color, 0.07, 0, 0)),
+          core: new InstancedBatch(
+            this.stage,
+            this.mesh,
+            l.color,
+            EACH,
+            this.root,
+            flatMaterial(l.color, 0.2, 0, 0),
+          ),
+          halo: new InstancedBatch(
+            this.stage,
+            this.mesh,
+            l.color,
+            EACH,
+            this.root,
+            flatMaterial(l.color, 0.07, 0, 0),
+          ),
           color: key,
         };
         this.batches[k] = b;
@@ -60,7 +75,8 @@ export class DepthLayer {
           speed = 0.15 + 0.2 * Math.abs(u(2)),
           span = 26;
         // (Drifting slowly across, wrapping about the eye's place: far off, they pass behind it again and again.)
-        const x = cx + ((((a * span + t * speed * (u(3) > 0 ? 1 : -1)) % span) + span) % span) - span / 2,
+        const x =
+            cx + ((((a * span + t * speed * (u(3) > 0 ? 1 : -1)) % span) + span) % span) - span / 2,
           y = cy + (Math.abs(u(4)) - 0.5) * 9 + Math.sin(t * 0.2 + i) * 0.4;
         return { x, y, z: -BEHIND - Math.abs(u(5)) * 6 };
       };

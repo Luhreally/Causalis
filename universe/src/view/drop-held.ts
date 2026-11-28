@@ -43,11 +43,21 @@ import { partEffects, wayOf, type Traits } from "./line.ts";
  * thick and the rivals that crowd the open water are few. Its rivals eat as they always did, each by its size and pace,
  * sensing a speck only within 10 µm (view/drop.ts): no further than the one held can see one.
  */
-export type Supply = { readonly x: number; readonly y: number; readonly r: number; readonly how: "vent" | "light" };
+export type Supply = {
+  readonly x: number;
+  readonly y: number;
+  readonly r: number;
+  readonly how: "vent" | "light";
+};
 export function supplyOf(s: DropState): Supply {
   const g = s.grain;
   if (g) return { x: g.x, y: g.y, r: g.r + 14, how: "vent" };
-  return { x: FIELD_W * 0.2, y: s.habitat === "soil" ? FIELD_H * 0.5 : FIELD_H * 0.12, r: 26, how: "light" };
+  return {
+    x: FIELD_W * 0.2,
+    y: s.habitat === "soil" ? FIELD_H * 0.5 : FIELD_H * 0.12,
+    r: 26,
+    how: "light",
+  };
 }
 /**
  * Crumbs a second at the supply, for each of the drop's own food (its whole water brings six whole specks), and what a
@@ -217,10 +227,7 @@ export function lookOf(s: DropState, c: Cell): { dx: number; dy: number } | null
 }
 
 /** The nearest food to the one held: how far, and which way (µm; null: none within sight). */
-export function foodOf(
-  s: DropState,
-  c: Cell,
-): { d: number; dx: number; dy: number } | null {
+export function foodOf(s: DropState, c: Cell): { d: number; dx: number; dy: number } | null {
   let best: { d: number; dx: number; dy: number } | null = null;
   for (const m of s.motes) {
     const dx = gap(c.x, m.x, FIELD_W),
@@ -300,7 +307,13 @@ export function stepHeld(s: DropState, h: DropHand): void {
     } else told("Too little left in you to dart", false);
   } else if (act === "engulf") {
     const prey = h.traits.nucleus ? preyOf(s, c, fx.prey) : null;
-    if (!prey) told(h.traits.nucleus ? "None near small enough to take in" : "Your line has no nucleus to take in another", false);
+    if (!prey)
+      told(
+        h.traits.nucleus
+          ? "None near small enough to take in"
+          : "Your line has no nucleus to take in another",
+        false,
+      );
     else {
       s.cells.splice(s.cells.indexOf(prey), 1);
       const gain = worth(prey.size) * DIGEST;
@@ -322,7 +335,11 @@ export function stepHeld(s: DropState, h: DropHand): void {
   // —— It moves as far as it is pushed: at its size no way is kept (inertia is nothing to it).
   const push = Math.min(1, Math.hypot(h.mx, h.my)),
     v =
-      h.speed * push * (h.dart > 0 ? DART_FASTER : 1) * (h.bask ? 0.3 : 1) * (h.caught > 0 ? GRIPPED : 1);
+      h.speed *
+      push *
+      (h.dart > 0 ? DART_FASTER : 1) *
+      (h.bask ? 0.3 : 1) *
+      (h.caught > 0 ? GRIPPED : 1);
   if (push > 0.05) {
     c.heading = Math.atan2(h.my, h.mx);
     h.steered += dt;
@@ -353,7 +370,8 @@ export function stepHeld(s: DropState, h: DropHand): void {
   h.gained += gain;
   // —— What it spends: to keep alive, by its size, and to go, as its speed's square against its way's usual.
   const base = SPEED[way] * kp;
-  c.energy -= (HELD_UPKEEP * fx.upkeep * UPKEEP[way] * w + 0.002 * w * (v / Math.max(0.1, base)) ** 2) * cdt;
+  c.energy -=
+    (HELD_UPKEEP * fx.upkeep * UPKEEP[way] * w + 0.002 * w * (v / Math.max(0.1, base)) ** 2) * cdt;
   c.age += cdt;
   for (const m of c.meals) m.age += dt;
   c.meals = c.meals.filter((m) => m.age < 8);
@@ -477,7 +495,14 @@ function callMate(s: DropState, c: Cell, h: DropHand): number {
   let best: Cell | null = null,
     bd = Infinity;
   for (const o of s.cells) {
-    if (o === c || o.kind !== c.kind || o.dividing > 0 || o.size > c.size * 1.6 || o.size < c.size * 0.6) continue;
+    if (
+      o === c ||
+      o.kind !== c.kind ||
+      o.dividing > 0 ||
+      o.size > c.size * 1.6 ||
+      o.size < c.size * 0.6
+    )
+      continue;
     const d = Math.hypot(gap(c.x, o.x, FIELD_W), gapY(s, c.y, o.y)) - (o.marked ? 40 : 0);
     if (d < 70 && d < bd) [best, bd] = [o, d];
   }

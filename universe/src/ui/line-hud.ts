@@ -182,7 +182,10 @@ export class LineHud {
       (e) => {
         if ((e.target as HTMLElement).closest(".line-layer")) return;
         e.preventDefault();
-        this.pinch = Math.max(0.55, Math.min(1.8, this.pinch * Math.exp(Math.sign(e.deltaY) * 0.12)));
+        this.pinch = Math.max(
+          0.55,
+          Math.min(1.8, this.pinch * Math.exp(Math.sign(e.deltaY) * 0.12)),
+        );
       },
       { passive: false },
     );
@@ -191,7 +194,10 @@ export class LineHud {
     // (How tall the top's column stands: what opens over the drop opens under it.)
     if (typeof ResizeObserver !== "undefined")
       new ResizeObserver(() =>
-        this.element.style.setProperty("--line-top", `${Math.ceil(this.top.getBoundingClientRect().bottom)}px`),
+        this.element.style.setProperty(
+          "--line-top",
+          `${Math.ceil(this.top.getBoundingClientRect().bottom)}px`,
+        ),
       ).observe(this.top);
   }
 

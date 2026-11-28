@@ -1551,3 +1551,5 @@ export {
 } from "./networks.ts";
 // (Where a locked world's sun stands still over a place, for the views that light it: rules/locked.ts.)
 export { lockedDay } from "../rules/index.ts";
+// (Live a Line's types, for the chunks it alone loads: types only, so nothing of view/line.ts comes with the god game.)
+export type { PartId, Traits } from "./line.ts";

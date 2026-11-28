@@ -6,7 +6,12 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { seedFromText } from "../../src/kernel/index.ts";
 import { EARTHLIKE, OPEN } from "../../src/rules/index.ts";
-import { generateHomeWorld, protoLifeWorld, treeOfLife, type HomeWorld } from "../../src/gen/index.ts";
+import {
+  generateHomeWorld,
+  protoLifeWorld,
+  treeOfLife,
+  type HomeWorld,
+} from "../../src/gen/index.ts";
 import { bredOn, checkBody, foundersOf, youngOf } from "../../src/host/line.ts";
 import { newMeadow } from "../../src/view/meadow.ts";
 
@@ -32,8 +37,12 @@ const SEEDS = [
   "vesper 12",
   "otter",
 ];
-const worlds: [string, HomeWorld][] = SEEDS.map((n, i) => [n, generateHomeWorld(seedFromText(n), i % 2 ? OPEN : EARTHLIKE)]);
-const lifeWorld = (g: HomeWorld) => protoLifeWorld(g as unknown as Parameters<typeof protoLifeWorld>[0]);
+const worlds: [string, HomeWorld][] = SEEDS.map((n, i) => [
+  n,
+  generateHomeWorld(seedFromText(n), i % 2 ? OPEN : EARTHLIKE),
+]);
+const lifeWorld = (g: HomeWorld) =>
+  protoLifeWorld(g as unknown as Parameters<typeof protoLifeWorld>[0]);
 
 test("every body a line may found, and every young it may go on in, passes its world's physics, on twenty worlds", () => {
   let worlds20 = 0,
@@ -45,7 +54,11 @@ test("every body a line may found, and every young it may go on in, passes its w
       at = treeOfLife(g).rungs.find((r) => r.id === "bodies")?.at ?? 600,
       founders = foundersOf(g, n, 1, 30);
     assert.ok(founders.length >= 2, `${n}: two or more bodies to found (${founders.length})`);
-    assert.equal(new Set(founders.map((f) => f.way)).size, founders.length, `${n}: each founder a way of its own`);
+    assert.equal(
+      new Set(founders.map((f) => f.way)).size,
+      founders.length,
+      `${n}: each founder a way of its own`,
+    );
     let line = founders[0]!,
       my = at;
     for (const f of founders) {
@@ -139,7 +152,10 @@ test("the cell held can live: steered simply toward the nearest food it divides 
     const block = dropOfWorld(g, dawnSeaOf(g), { dawn: true });
     if (!block) continue;
     for (const steer of [true, false]) {
-      const s = newDrop(block, block.kinds.map((k) => k.way === "eater" || k.way === "rock"));
+      const s = newDrop(
+        block,
+        block.kinds.map((k) => k.way === "eater" || k.way === "rock"),
+      );
       // (The drop as the mode may find it: lived a while first, its rivals as many as it holds.)
       for (let i = 0; i < 900; i++) stepDrop(s);
       const kind = block.kinds.find((k) => k.way === "eater") ?? block.kinds[0]!,
@@ -166,11 +182,15 @@ test("the cell held can live: steered simply toward the nearest food it divides 
           break;
         }
       }
-      if (steer) assert.ok(at > 0 && at <= 90, `${n}: steered to food, divided at ${at} s (ate ${h.ate})`);
+      if (steer)
+        assert.ok(at > 0 && at <= 90, `${n}: steered to food, divided at ${at} s (ate ${h.ate})`);
       else {
         assert.equal(at, -1, `${n}: left alone it does not divide`);
         // (Starved only by neglect: a minute and more of it.)
-        assert.ok(lasted >= 60, `${n}: left alone it lasts a minute (${lasted} s, ${h.ended || "alive"})`);
+        assert.ok(
+          lasted >= 60,
+          `${n}: left alone it lasts a minute (${lasted} s, ${h.ended || "alive"})`,
+        );
       }
     }
   }

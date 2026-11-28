@@ -126,7 +126,11 @@ export class LineGuide {
     show.onclick = () => this.show(next.show);
     hide.title = "Hide the guide (its button brings it back)";
     hide.onclick = () => this.setHidden(true);
-    head.append(el("strong", "line-coach-title", `${LESSONS.indexOf(next) + 1}. ${next.title}`), show, hide);
+    head.append(
+      el("strong", "line-coach-title", `${LESSONS.indexOf(next) + 1}. ${next.title}`),
+      show,
+      hide,
+    );
     this.coach.replaceChildren(head, el("p", "line-coach-words", next.words));
   }
 
@@ -192,7 +196,11 @@ export class LineGuide {
         "",
         "Your world waits, held still, exactly where you left it. Press ☀️ Wake at the top right whenever you like: you are back in your world, and nothing you did here has changed it. Your line is kept, to go on with later.",
       ),
-      el("p", "line-card-small", "A short guide shows you each step as you go. You can hide it, and its 📘 button brings it back."),
+      el(
+        "p",
+        "line-card-small",
+        "A short guide shows you each step as you go. You can hide it, and its 📘 button brings it back.",
+      ),
       row,
     );
     return card;
@@ -224,7 +232,11 @@ export class LineGuide {
       list.append(li);
     }
     const row = el("div", "line-card-row"),
-      toggle = el("button", "line-card-other", this.kept.hidden ? "Show the guide" : "Hide the guide"),
+      toggle = el(
+        "button",
+        "line-card-other",
+        this.kept.hidden ? "Show the guide" : "Hide the guide",
+      ),
       again = el("button", "line-card-other", "Begin the lessons again");
     toggle.onclick = () => {
       this.setHidden(!this.kept.hidden);

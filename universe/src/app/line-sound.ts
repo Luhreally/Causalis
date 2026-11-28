@@ -3,7 +3,10 @@
 // on the spot from oscillators and a little noise (no files), gentle, and silent whenever the game's sound is off (🔊 and
 // its effects, app/sound.ts settingsNow): nothing sounds that the player has not let sound. Its context is made at the
 // first sound asked after a touch, and closed on waking.
-import { sound } from "./sound.ts";
+import type { sound as Sound } from "./sound.ts";
+
+/** The game's own sound, as the mode is handed it (only its settings are read: whether, and how loud). */
+type Settings = Pick<typeof Sound, "settingsNow">;
 
 type Tone = { f: number; to: number; len: number; type: OscillatorType; level: number };
 
@@ -23,6 +26,10 @@ const TONES: Readonly<Record<"chomp" | "pop" | "hurt" | "split" | "danger", read
 };
 
 export class LineSound {
+  private readonly sound: Settings;
+  constructor(sound: Settings) {
+    this.sound = sound;
+  }
   private ctx: AudioContext | null = null;
   private out: GainNode | null = null;
   private bed: { src: AudioBufferSourceNode; gain: GainNode } | null = null;
@@ -30,7 +37,7 @@ export class LineSound {
 
   /** Whether the game lets sounds be heard now. */
   private get allowed(): boolean {
-    const s = sound.settingsNow();
+    const s = this.sound.settingsNow();
     return s.can && s.on && s.effects && !document.hidden;
   }
 
@@ -49,7 +56,7 @@ export class LineSound {
       this.out.connect(this.ctx.destination);
     }
     if (this.ctx.state !== "running") void this.ctx.resume();
-    this.out!.gain.value = 0.6 * sound.settingsNow().volume;
+    this.out!.gain.value = 0.6 * this.sound.settingsNow().volume;
     return this.ctx;
   }
 
@@ -109,7 +116,11 @@ export class LineSound {
       src.start();
       this.bed = { src, gain };
     }
-    this.bed.gain.gain.setTargetAtTime(0.05 + 0.06 * Math.max(0, Math.min(1, tense)), ctx.currentTime, 0.5);
+    this.bed.gain.gain.setTargetAtTime(
+      0.05 + 0.06 * Math.max(0, Math.min(1, tense)),
+      ctx.currentTime,
+      0.5,
+    );
   }
 
   close(): void {

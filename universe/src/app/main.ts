@@ -10917,7 +10917,7 @@ async function runPlanetPage(): Promise<void> {
   villagePanel.onPlace = () => void placeFlow.toggle();
   stage.onUpdate(() => placeFlow.frame());
   // Live a Line (its chunk fetched when first entered): from the world's first cells, or from a line of its tree of life.
-  const lineFlow = lazyLine({ hud, client, stage, rig, time });
+  const lineFlow = lazyLine({ hud, client, stage, rig, time, sound });
   exposed.line = lineFlow;
   planetPanel.onLine = () => void lineFlow.open(null);
   {
@@ -10928,7 +10928,7 @@ async function runPlanetPage(): Promise<void> {
             ...acted(page),
             {
               label: "🧬 Live this line",
-              title: "Live this line by hand, from one of its first cells",
+              title: "",
               on: false,
               run: () => {
                 pageWindow.close();
@@ -11458,9 +11458,16 @@ async function runPlanetPage(): Promise<void> {
     client,
     () => {
       if (
-        ["filming", "fleet-filming", "homing", "living", "placing", "possessing", "ruling", "lining"].some(
-          (c) => document.body.classList.contains(c),
-        )
+        [
+          "filming",
+          "fleet-filming",
+          "homing",
+          "living",
+          "placing",
+          "possessing",
+          "ruling",
+          "lining",
+        ].some((c) => document.body.classList.contains(c))
       )
         return null;
       // (On a phone the foot of the stars' map is its legend's, and of the galaxy its own.)
