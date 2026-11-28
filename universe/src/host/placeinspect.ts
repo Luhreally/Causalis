@@ -68,6 +68,7 @@ import { placeDead, placeFamily, placeKin } from "./placefamily.ts";
 import { placeCharacter } from "./placecharacter.ts";
 import { placeBody } from "./placebody.ts";
 import { placeMaking } from "./placemaking.ts";
+import { placeCivic } from "./placecivic.ts";
 import { placeInventory } from "./placeinventory.ts";
 import { bondWords, placeBound } from "./placebound.ts";
 import { placeFaith } from "./placefaith.ts";
@@ -1145,6 +1146,7 @@ export function placeInspect(world: World, town: string, ref: string): PlaceInsp
   if (ref.startsWith("plcd:")) return placeBound(world, place);
   if (ref.startsWith("plcr:")) return placeFaith(world, place);
   if (ref.startsWith("plcs:")) return placeMaking(world, place);
+  if (ref.startsWith("plcv:")) return placeCivic(world, place);
   if (ref.startsWith("plcm:")) {
     const id = Number(ref.slice(ref.lastIndexOf(":") + 1));
     return Number.isInteger(id) ? placeBody(world, place, id) : null;

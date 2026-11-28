@@ -52,6 +52,8 @@ export const placeWorkRef = (town: string, lot: number, made: number, maker: num
 export const placeFaithRef = (town: string): string => `plcr:${town}`;
 /** What a town lives on (R5). */
 export const placeMakingRef = (town: string): string => `plcs:${town}`;
+/** A town's works and orders (R6). */
+export const placeCivicRef = (town: string): string => `plcv:${town}`;
 /** The bound of a town, its captives and those its justice holds (P6). */
 export const placeBoundRef = (town: string): string => `plcd:${town}`;
 /** One's family in the town (P3). */

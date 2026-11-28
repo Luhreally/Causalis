@@ -15,6 +15,7 @@ import type {
   PlaceInspectFaith,
   PlaceInspectBody,
   PlaceInspectMaking,
+  PlaceInspectCivic,
   PlaceInspectCharacter,
   PlaceInspectDead,
   PlaceInspectFamily,
@@ -268,6 +269,7 @@ export class PlaceInspector {
     else if (x.kind === "character") this.character(x);
     else if (x.kind === "body") this.bodyPage(x);
     else if (x.kind === "making") this.making(x);
+    else if (x.kind === "civic") this.civic(x);
     else this.lot(x);
   }
 
@@ -829,6 +831,50 @@ export class PlaceInspector {
     );
     this.body.replaceChildren(...body);
   }
+  /** A town's works and orders (R6): what is going up, what its land may find next, its standing orders. */
+  private civic(x: PlaceInspectCivic): void {
+    this.picture(x);
+    const title = `${x.icon} ${x.name}`;
+    if (this.title.textContent !== title) this.title.textContent = title;
+    if (this.sub.textContent !== x.sub) this.sub.textContent = x.sub;
+    const body: HTMLElement[] = [el("h3", "place-insp-sub", "Going up")];
+    if (x.sites.length) {
+      const list = el("div", "place-insp-slots");
+      for (const s of x.sites) {
+        const row = el("button", "place-insp-slot place-insp-site"),
+          bar = el("span", "place-insp-wear"),
+          fill = el("span", "place-insp-wear-fill");
+        fill.style.width = `${s.share}%`;
+        bar.append(fill);
+        row.append(
+          el("span", "place-insp-slot-name", s.name),
+          el("span", "place-insp-slot-what", `${s.share}% · ${s.words}`),
+          bar,
+        );
+        row.onclick = () => this.onInspect(s.ref);
+        list.append(row);
+      }
+      body.push(list);
+    } else
+      body.push(
+        el("p", "place-insp-why", "Nothing is going up: Build lists what could be raised."),
+      );
+    body.push(el("h3", "place-insp-sub", "What its land may find next"));
+    if (x.findable.length)
+      body.push(this.facts(x.findable.map((f) => [f.name, f.words, null] as const)));
+    else body.push(el("p", "place-insp-why", "Nothing, as its land's lore stands now."));
+    if (x.known.length) {
+      body.push(el("p", "place-insp-label", "Came to know last"));
+      const list = el("ul", "place-insp-life");
+      for (const k of x.known) list.append(el("li", "", k));
+      body.push(list);
+    }
+    body.push(el("p", "place-insp-why", x.learned));
+    body.push(el("h3", "place-insp-sub", "Its standing orders"));
+    if (x.orders.length) body.push(this.facts(x.orders.map(([a, b]) => [a, b, null] as const)));
+    else body.push(el("p", "place-insp-why", "None given: it runs as its land runs it."));
+    this.body.replaceChildren(...body);
+  }
   /** What the town lives on (R5): its stuffs, its making today, water, fuel, poisons, what it is short of, how steady. */
   private making(x: PlaceInspectMaking): void {
     this.picture(x);
@@ -1199,6 +1245,14 @@ export class PlaceInspector {
       );
       making.onclick = () => this.onInspect(x.ref.replace(/^plcl:(.*):\d+$/, "plcs:$1"));
       body.push(making);
+      // (Its works and orders, R6.)
+      const civic = el("button", "place-insp-order place-insp-civic", "Its works and orders ▸");
+      civic.setAttribute(
+        "aria-label",
+        "What the town is raising, what its land may find next, and its standing orders",
+      );
+      civic.onclick = () => this.onInspect(x.ref.replace(/^plcl:(.*):\d+$/, "plcv:$1"));
+      body.push(civic);
     }
     if (x.zoneWords) body.push(el("p", "place-insp-why", x.zoneWords));
     // (The guard's post by your order, O7: those standing to arms keep it, watching the homes within a cry of it.)

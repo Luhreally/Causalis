@@ -1023,6 +1023,17 @@ for (const view of [
       8000,
     );
     check((await kind()) === "lot", "Back from what it lives on comes to the square's page");
+    // Its works and orders (R6): from the square's page, and Back.
+    await k('document.querySelector(".place-insp-civic")?.scrollIntoView({ block: "center" })');
+    await page.waitForTimeout(300);
+    await press(".place-insp-civic", "Its works and orders ▸, on the square's page");
+    await until("its works and orders", async () => (await kind()) === "civic", 8000);
+    await page.waitForTimeout(400);
+    say(`civic: ${(await text(".place-insp")).slice(0, 300)}`);
+    await look("20p-civic", "the town's works and orders");
+    await press(".place-insp-back", "‹ Back to the square's page from its works and orders");
+    await until("the square's page from its works", async () => (await kind()) === "lot", 8000);
+    check((await kind()) === "lot", "Back from its works and orders comes to the square's page");
     // One of its dead (R1): the Log's names lead to them; their page outlives them, and Back comes again.
     {
       await press('.place-tab[data-tab="log"]', "the log tab, for one of its dead");
