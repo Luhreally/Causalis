@@ -79,6 +79,9 @@ export class LineHud {
     if (this.element.hidden) return;
     // (Nothing of the god game's keys while a line is lived: its clock and its scales wait as they were.)
     e.stopImmediatePropagation();
+    // (Typed into a field of the mode's, a name: the letters are the field's, not the stick's or an act's.)
+    const at = e.target as HTMLElement | null;
+    if (at && (at.tagName === "INPUT" || at.tagName === "TEXTAREA")) return;
     const down = e.type === "keydown";
     if (AHEAD[e.code]) {
       e.preventDefault();

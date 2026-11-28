@@ -548,6 +548,68 @@ body.lining > *:not(#app) {
   float: right;
   margin: 0 0 4px 8px;
 }
+/* (A stage's payoff: its tally as two columns, a label and its number, under the heading and the picture.) */
+.line-payoff .line-tally {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 2px 12px;
+  margin: 4px 0 8px;
+  font-size: 15px;
+}
+.line-payoff .line-tally dt {
+  color: #9ee7ff;
+}
+.line-payoff .line-tally dd {
+  margin: 0;
+  font-weight: bold;
+  overflow-wrap: anywhere;
+}
+.line-payoff > .line-beast-pic,
+.line-payoff > .line-cell-pic {
+  float: none;
+  display: block;
+  margin: 0 auto 4px;
+}
+.line-hud .line-link-go {
+  background: #f2c14e;
+  color: #2a1d00;
+  font-weight: bold;
+}
+.line-council {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 8px 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+}
+.line-council-what {
+  font-weight: bold;
+  color: #9ee7ff;
+}
+.line-council.cannot .line-council-cost {
+  color: #b9c2d8;
+}
+/* (A name for the people the line may become: the field a finger's height, the full width of the card.) */
+.line-name {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 4px 0 8px;
+  font-size: 14px;
+}
+.line-name input {
+  min-height: 44px;
+  box-sizing: border-box;
+  width: 100%;
+  padding: 6px 10px;
+  font: inherit;
+  font-size: 16px;
+  border-radius: 8px;
+  border: 1px solid #5b7bd5;
+  background: #0d1838;
+  color: #fff;
+}
 /* (The line risen as a people: its forebear and one of them, side by side under the heading, the words below full width.) */
 .line-rises-pictures {
   display: flex;

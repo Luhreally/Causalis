@@ -4,6 +4,7 @@
 // it, never a stand-in. The village, town and realm each lead into the god game's own page, where living as one of them,
 // ruling them and their courts already are.
 import type { LineStars, LineStory } from "../host/line-story.ts";
+import type { Council } from "./line-realm.ts";
 import { el } from "../ui/index.ts";
 import { fact, para, type LinePage } from "../ui/line-pages.ts";
 
@@ -30,6 +31,10 @@ export type StoryOf = {
   readonly world: LineStory | null;
   /** The realm holding its land at the stars (S8; null: no band led, or not asked yet). */
   readonly stars: LineStars | null;
+  /** Its realm's council this year (C1; null: no realm, or not asked yet). */
+  readonly council: Council | null;
+  /** This year's word, if given; what last year came to, in words. */
+  readonly year: { readonly said: string | null; readonly last: readonly string[] };
 };
 
 export const STORY = [
@@ -39,6 +44,7 @@ export const STORY = [
   "story:village",
   "story:town",
   "story:realm",
+  "story:year",
   "story:stars",
 ] as const;
 const NAMES: Readonly<Record<(typeof STORY)[number], string>> = {
@@ -48,6 +54,7 @@ const NAMES: Readonly<Record<(typeof STORY)[number], string>> = {
   "story:village": "Its village",
   "story:town": "Its town",
   "story:realm": "Its realm",
+  "story:year": "Its year",
   "story:stars": "Its stars",
 };
 
@@ -70,6 +77,8 @@ export function storyPage(
   go: (text: string, ref: string) => HTMLElement,
   /** A button asking the realm's next ship to sail for a star (null: the ask taken back). */
   send: (text: string, realm: string, star: string | null) => HTMLElement,
+  /** A button of the realm's year (C1): one of its council's choices by its place, or the year let pass. */
+  rule: (text: string, choice: number | "pass", can: boolean) => HTMLElement,
 ): LinePage | null {
   const i = STORY.indexOf(ref as (typeof STORY)[number]);
   if (i < 0) return null;
@@ -202,6 +211,51 @@ export function storyPage(
               ),
             ],
       );
+    case "story:year": {
+      const c = s.council;
+      if (!w?.realm || !c)
+        return page("its year", [
+          para(
+            w?.realm
+              ? `${w.realm.name} has no one to rule it now: its year comes when it has a ruler again.`
+              : "First its realm: once a realm holds your line's land, you rule its years.",
+          ),
+        ]);
+      const t = c.tally,
+        parts: HTMLElement[] = [
+          fact("Ruled by", `${c.ruler}, ${c.title}`),
+          fact(
+            "Its people",
+            `${t.people.toLocaleString("en")} in ${t.lands} ${t.lands === 1 ? "land" : "lands"}`,
+          ),
+          fact("Its place", `${t.rank} of the ${t.of} realms it meets`),
+          fact("Its host", `${t.host.toLocaleString("en")} under arms`),
+          fact(
+            "Its ruler's standing",
+            `${Math.round(t.standing * 100)} in a hundred; its lands' unrest ${Math.round(t.unrest * 100)} in a hundred`,
+          ),
+        ];
+      if (s.year.last.length) parts.push(fact("Last year", s.year.last.join("; ")));
+      parts.push(
+        para(
+          s.year.said
+            ? `This year's word is given: ${s.year.said}. Let the year pass to see what it comes to.`
+            : "One word a year: choose what your realm does, then let the year pass. Each costs what it says.",
+        ),
+      );
+      c.choices.forEach((ch, i) => {
+        // (Each a block of its own: what it is, what it would cost or why not, and its key.)
+        const box = el("div", ch.can ? "line-council" : "line-council cannot");
+        box.append(
+          el("div", "line-council-what", `${ch.icon} ${ch.label}`),
+          el("div", "line-council-cost", ch.words),
+          rule(ch.can ? "Do it" : "It cannot be done now", i, ch.can && !s.year.said),
+        );
+        parts.push(box);
+      });
+      parts.push(rule("⏭ Let a year pass", "pass", true));
+      return page("its year", parts);
+    }
     case "story:stars": {
       const st = s.stars;
       if (!st?.realm)

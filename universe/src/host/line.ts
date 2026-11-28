@@ -578,6 +578,8 @@ export function risesOf(world: World, text: string): LineRises {
     cladeName = (id: string) => CLADES.find((c) => c.id === id)?.body.name ?? id;
   return {
     risen: !!p?.line,
+    named: !!want?.name,
+    why: made.life.lineNot ?? null,
     people: p
       ? {
           name: p.body.name,
@@ -588,7 +590,8 @@ export function risesOf(world: World, text: string): LineRises {
           figure: peopleFigure(made),
         }
       : null,
-    lineClade: want ? cladeName(want.clade) : null,
+    // (Its kind in the words of the kinds that rise on a world like Earth: none on a world read from its physics.)
+    lineClade: want && prior === EARTHLIKE ? cladeName(want.clade) : null,
   };
 }
 

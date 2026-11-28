@@ -739,7 +739,8 @@ export type LessonId =
   | "hunt"
   | "seed"
   | "sow"
-  | "story";
+  | "story"
+  | "rule";
 
 /** The stage a lesson is of: the guide shows the next of the stage the line is in. */
 export type LessonStage = "cell" | "body" | "band";
@@ -854,6 +855,14 @@ export const LESSONS: readonly {
     title: "Read your line's story",
     words:
       "Press your band's name at the top: your line's story, from its cell to its village, its realm and its stars.",
+    show: ".line-name",
+  },
+  {
+    id: "rule",
+    stage: "band",
+    title: "Rule your realm's year",
+    words:
+      "Once a realm holds your line's land: in your line's story, Its year. Choose one thing for your realm to do (build, court, fight or make peace), each with what it costs, then let the year pass and see what it came to.",
     show: ".line-name",
   },
 ];

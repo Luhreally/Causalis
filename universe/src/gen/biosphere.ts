@@ -147,6 +147,8 @@ export type Biosphere = {
   } | null;
   /** Why no people rose (B4: a world read from its physics where none qualified). */
   readonly noPeople?: string;
+  /** A line made so that did not rise as the people: why not, by the world's own rule (S5; absent: none asked, or it rose). */
+  readonly lineNot?: string;
 };
 
 /** A world where no life took hold (Phase 56: a kind's liquid its chemistry never quickened in). */
@@ -371,7 +373,7 @@ export function makeBiosphere(
      * S5): they rise of it where this world's conditions let that clade rise at all; else the world's own rise, and the line
      * lives on beside them.
      */
-    readonly rises?: { readonly clade: string; readonly name: string } | null;
+    readonly rises?: { readonly clade: string; readonly name: string | null } | null;
   } = {
     prior: "earthlike",
     gravity: 1,
@@ -985,6 +987,13 @@ export function makeBiosphere(
   const asked = world.rises ? CLADES.find((c) => c.id === world.rises!.clade) : undefined,
     askedAt = asked ? conditionsIn(asked.body.medium) : null,
     fromLine = !!asked && !!askedAt && asked.fit(askedAt) > 0,
+    // (Asked and not risen: why, in this world's words.)
+    lineNot =
+      world.rises && !fromLine
+        ? asked
+          ? `${asked.body.name} could not live where a people must on this world`
+          : "no kind that rises to thought reads in its body"
+        : null,
     clade = fromLine
       ? asked!
       : riseOf(world.prior, conditionsIn, (i) => rng.real(BIO, Math.max(0, apesAt), 0, 101, i));
@@ -1002,8 +1011,8 @@ export function makeBiosphere(
             conditions,
             [0, 1, 2].map((i) => rng.real(BIO, home, 0, 102, i)),
           ),
-    // (Risen from the line: its people named for it.)
-    body = fromLine ? { ...bred, name: world.rises!.name } : bred;
+    // (Risen from the line: its people named as the hand named them; unnamed, as the world names their kind.)
+    body = fromLine && world.rises!.name ? { ...bred, name: world.rises!.name } : bred;
   const apes: Species = {
     index: species.length,
     ref: speciesRef(0, species.length),
@@ -1044,5 +1053,6 @@ export function makeBiosphere(
         : clade.because(conditions),
       ...(fromLine ? { line: true as const } : {}),
     },
+    ...(lineNot ? { lineNot } : {}),
   };
 }

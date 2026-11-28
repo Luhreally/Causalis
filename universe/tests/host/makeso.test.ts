@@ -4,7 +4,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { seedFromText, seedWithAct } from "../../src/kernel/index.ts";
-import { EARTHLIKE } from "../../src/rules/index.ts";
+import { EARTHLIKE, OPEN } from "../../src/rules/index.ts";
 import {
   cladeOfLine,
   generateHomeWorld,
@@ -171,9 +171,64 @@ test("S5: the line made so rises as the people where its clade can rise on the w
     assert.equal(people.name, "grizzle folk");
   }
   assert.ok(rose >= 2, `${rose} of 4 clades rose on first light`);
+  // (Unnamed by the hand: they rise named as the world names their kind, so name and kind agree.)
+  {
+    const made = makeSo(seedFromText("first light").text, {
+        cell: null,
+        bodies: [{ my: 40, way: "grazer" }],
+        node: founder.node!,
+        genome: { ...founder.genome, skin: "fur", legs: 2, fins: 0, wings: 0, mass: 30 },
+      }),
+      p = generateHomeWorld(seedFromText(made.seed), EARTHLIKE).life.people!;
+    assert.ok(p.line, "the furred line rises unnamed too");
+    assert.doesNotMatch(p.body.name, /folk/, `unnamed: “${p.body.name}”`);
+    assert.equal(p.body.clade, "shaggy");
+  }
   // (And no act, the people as they were.)
   assert.equal(
     generateHomeWorld(seedFromText("first light"), EARTHLIKE).life.people!.body.name,
     "upright apes",
   );
+});
+
+test("S5 on a world read from its physics: the line's own body rises where the world's rule of rising would raise it; no act, as it was", () => {
+  let rose = 0;
+  for (const text of ["alien 16", "alien 182"]) {
+    const before = generateHomeWorld(seedFromText(text), OPEN),
+      was = before.life.people;
+    if (!was) continue;
+    // (The line lived from the lineage the world's own people came of, its body as that lineage's: it can rise.)
+    const tree0 = treeOfLife(before),
+      kin = tree0.nodes.find(
+        (n) => n.species === was.forebear && n.genome && wayIndex(n.way as never) >= 0,
+      );
+    assert.ok(kin, `${text}: the people's forebear is in the tree`);
+    const made = makeSo(seedFromText(text).text, {
+        cell: null,
+        bodies: [{ my: 1, way: kin!.way as never }],
+        node: kin!.id,
+        genome: kin!.genome!,
+        name: "Ossa",
+      }),
+      g = generateHomeWorld(seedFromText(made.seed), OPEN),
+      p = g.life.people!;
+    assert.ok(p, `${text}: a people still rises`);
+    if (!p.line) continue;
+    rose++;
+    assert.equal(p.body.name, "ossa folk");
+    assert.match(p.because, /^of the line your hand lived and made so, kin of the /);
+    const tree = treeOfLife(g),
+      line = tree.nodes.find((n) => n.name.startsWith("Your line"))!,
+      people = tree.nodes.find((n) => n.kind === "people")!;
+    let up = people.parent,
+      found = false;
+    while (up >= 0 && !found) {
+      found = up === line.id;
+      up = tree.nodes[up]!.parent;
+    }
+    assert.ok(found, `${text}: the people come of your line`);
+    // (No act: the people as they were, to the letter.)
+    assert.deepEqual(generateHomeWorld(seedFromText(text), OPEN).life.people, was);
+  }
+  assert.ok(rose >= 1, `${rose} of 2 far worlds had the line rise`);
 });

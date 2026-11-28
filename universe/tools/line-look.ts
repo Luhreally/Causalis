@@ -4,8 +4,8 @@
 // Back and Forward; the guide's panel; a help page; What now?; the frame at four times the CPU's work while it swims; and
 // Wake, after which the world must be exactly where it was (its clock, and every domain's hash). Every state is read for
 // overlap by the overlap gate's reading (tools/hud-read.ts), and kept as a still (--shots). (npm run build first.)
-//   node tools/line-look.ts [--shots dir] [--seed "first light"] [--only phone|desk] [--frames 150]
-import { mkdirSync, readFileSync } from "node:fs";
+//   node tools/line-look.ts [--shots dir] [--universe earth] [--seed "first light"] [--only phone|desk] [--frames 150]
+import { copyFileSync, mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { preview } from "vite";
@@ -21,6 +21,8 @@ const argv = process.argv.slice(2),
   // (A far-year save to look at the story's stars on: copied beside the build, fetched and imported by the page.)
   starsSave = arg("--stars"),
   seed = arg("--seed") ?? "first light",
+  // (A world read from its physics: --universe alien --seed "alien 16".)
+  universe = arg("--universe") ?? "earth",
   only = arg("--only"),
   frames = Number(arg("--frames") ?? 150);
 if (shots) mkdirSync(shots, { recursive: true });
@@ -31,8 +33,14 @@ const problems: string[] = [],
     say(`${ok ? "ok " : "NOT"} ${what}`);
   };
 
-const root = fileURLToPath(new URL("..", import.meta.url)),
-  server = await preview({ root, logLevel: "silent", preview: { port: 4447, strictPort: false } }),
+const root = fileURLToPath(new URL("..", import.meta.url));
+// (The far-year save beside the build, where the page fetches it: a build empties dist, so it is put there each run.)
+if (starsSave) copyFileSync(starsSave, `${root}/dist/stars.save`);
+const server = await preview({
+    root,
+    logLevel: "silent",
+    preview: { port: 4447, strictPort: false },
+  }),
   base = server.resolvedUrls!.local[0]!,
   browser = await chromium.launch({
     args: ["--enable-gpu", "--ignore-gpu-blocklist", "--use-angle=d3d11"],
@@ -153,7 +161,7 @@ for (const view of [
       return ok;
     };
 
-  await page.goto(`${base}?universe=earth&seed=${encodeURIComponent(seed)}&hold=1`);
+  await page.goto(`${base}?universe=${universe}&seed=${encodeURIComponent(seed)}&hold=1`);
   await page.waitForFunction(
     () => !!(globalThis as { causalis?: { client?: unknown } }).causalis?.client,
     undefined,
@@ -284,6 +292,71 @@ for (const view of [
         await look("s3-sailed", "its stars, the ship sailed where asked");
       }
     }
+    // —— Its year (C1): the realm's council, a choice made by its own command, the year let pass and what it came to told.
+    {
+      type Council = {
+        name: string;
+        tally: { people: number; lands: number; rank: number };
+        choices: { kind: string; label: string; can: boolean; words: string }[];
+      };
+      await k(`globalThis.causalis.lineMode.story("story:year", ${baked.seat})`);
+      await page.waitForTimeout(600);
+      const cn = await k<Council | null>("globalThis.causalis.lineMode.storyCouncil()");
+      check(
+        !!cn && cn.choices.length >= 2,
+        `its year: ${cn?.name}, ${cn?.choices.map((c) => `${c.kind}${c.can ? "" : " (cannot)"}`).join(", ")}`,
+      );
+      say(
+        `its council: ${JSON.stringify(cn?.choices.map((c) => [c.label, c.words.slice(0, 60)]))}`,
+      );
+      await look("y1-year", "its year, its council");
+      c = await clippedPage();
+      check(c.length === 0, `no words clipped on its year (${c.slice(0, 3).join("; ")})`);
+      const can = cn?.choices.findIndex((x) => x.can) ?? -1;
+      if (can >= 0) {
+        await k(
+          `(() => { const all = [...document.querySelectorAll(".line-page button.line-link")].filter((e) => e.textContent === "Do it" && !e.disabled); const b = all[0]; if (!b) return; b.scrollIntoView({ block: "center" }); b.dataset.lookPick = "1"; })()`,
+        );
+        await page.waitForTimeout(300);
+        await press("[data-look-pick]", `“Do it”: ${cn!.choices[can]!.label}`);
+        await k(`document.querySelector("[data-look-pick]")?.removeAttribute("data-look-pick")`);
+        // (The world kept in the saves first: a far-year world takes some seconds.)
+        const said = await until(
+          "the year's word given, and said",
+          async () =>
+            await k<boolean>(
+              `/This year's word is given/.test(document.querySelector(".line-page")?.textContent ?? "")`,
+            ),
+          60000,
+        );
+        say(
+          `said: ${said}; the page says “${await k<string>("document.querySelector('.line-say, .line-hud .line-said')?.textContent ?? ''")}”`,
+        );
+        await look("y2-said", "its year, its word given");
+      }
+      await k(
+        `(() => { const b = [...document.querySelectorAll(".line-page button.line-link")].find((e) => /Let a year pass/.test(e.textContent ?? "")); if (!b) return; b.scrollIntoView({ block: "center" }); b.dataset.lookPick = "1"; })()`,
+      );
+      await page.waitForTimeout(300);
+      const ty0 = await k<number>("globalThis.causalis.client.status?.t ?? 0");
+      await press("[data-look-pick]", "⏭ Let a year pass");
+      await k(`document.querySelector("[data-look-pick]")?.removeAttribute("data-look-pick")`);
+      await until(
+        "the year's payoff",
+        async () => await k<boolean>("!!document.querySelector('.line-payoff')"),
+        60000,
+      );
+      const ty1 = await k<number>("globalThis.causalis.client.status?.t ?? 0");
+      check(
+        Math.round((ty1 - ty0) / 31536000) === 1,
+        `a year passed (${Math.floor(ty0 / 31536000)} → ${Math.floor(ty1 / 31536000)})`,
+      );
+      say(
+        `the year's payoff: ${await k<string>("document.querySelector('.line-payoff')?.textContent?.slice(0, 300) ?? ''")}`,
+      );
+      await look("y3-payoff", "its year's payoff");
+      await k("globalThis.causalis.lineMode.close()");
+    }
     check(
       errors.length === 0,
       `no errors on the page (${errors.slice(0, 2).join(" | ").slice(0, 400)})`,
@@ -351,14 +424,19 @@ for (const view of [
   if (await k<boolean>("globalThis.causalis.lineMode.threaten()")) {
     await page.waitForTimeout(350);
     await shot("03b-gripped");
-    // (Taken first: a grip takes its time, and the cell may slip it.)
-    if (
-      await until(
-        "the cell taken by the hunter set on it",
-        async () => (await state()).ended,
-        15000,
-      )
-    ) {
+    // (Taken first: a grip takes its time, and the cell may slip it, as it may on a world whose cells outswim their
+    // hunters. Gripped either way: hurt, the red edge.)
+    let gripped = false,
+      taken = false;
+    for (const end = Date.now() + 15000; Date.now() < end && !taken;) {
+      const s = (await state()) as unknown as { ended: unknown; hurt?: number };
+      gripped ||= (s.hurt ?? 0) > 0;
+      taken = !!s.ended;
+      if (!taken) await page.waitForTimeout(150);
+    }
+    check(gripped || taken, "the hunter set on the cell gripped it");
+    if (!taken) say("(the cell slipped the hunter's grip)");
+    if (taken) {
       await shot("03c-goes-on");
       await until(
         "the line to go on after the cell was taken",
@@ -630,258 +708,272 @@ for (const view of [
   };
   const band = () => k<Band | null>("globalThis.causalis.lineMode.band()");
   await k("globalThis.causalis.line.open('band')");
-  await until("the band led", async () => !!(await band())?.leading, 40000);
+  const noBand = await k<boolean>(
+    `globalThis.causalis.client.query({ type: "line.band", args: {} }).then((b) => b === null)`,
+  );
+  if (!noBand) await until("the band led", async () => !!(await band())?.leading, 40000);
   await page.waitForTimeout(1200);
-  await look("20-band-intro", "a band led: its card");
+  await look("20-band-intro", noBand ? "no band camps: its card" : "a band led: its card");
+  if (noBand)
+    say("(no band camps on this world now: its card says so, and the band's steps are skipped)");
   await k("globalThis.causalis.lineMode.close()");
   await page.waitForTimeout(1500);
-  const bd0 = (await band())!;
-  check(
-    bd0.people >= 6 && bd0.offers.length === 4,
-    `a band of ${bd0.people}, four acts (${bd0.offers.map((o) => o.label).join(", ")})`,
-  );
-  say(`the band's land: ${JSON.stringify(bd0.land)}; a wild grain there: ${bd0.grain}`);
-  await look("21-band", "the band at its camp");
-  await throttled("a band led");
-  // —— ⛺ Lead this band, from a camp's own page in the god game: that camp's band led, on its land (the last camp of the
-  // land, so that the asked one is told from the first, which the mode leads unasked).
-  {
-    await k("globalThis.causalis.lineMode.wake()");
-    await until(
-      "back in the god game",
-      async () => !(await k<boolean>("document.body.classList.contains('lining')")),
-      20000,
+  if (!noBand) {
+    const bd0 = (await band())!;
+    check(
+      bd0.people >= 6 && bd0.offers.length === 4,
+      `a band of ${bd0.people}, four acts (${bd0.offers.map((o) => o.label).join(", ")})`,
     );
-    const at = bd0.land!.cell,
-      camps = await k<{ id: number }[]>(
-        `globalThis.causalis.client.query({ type: "towns.land", args: { cell: ${at} } }).then((p) => p.camps.map((c) => ({ id: c.id })))`,
-      ),
-      id = camps[camps.length - 1]?.id ?? 0;
-    await k(`globalThis.causalis.open("camp:${at}:${id}")`);
-    await page.waitForTimeout(2500);
-    await look("21b-camp-page", "a camp's page, its key to lead its band");
-    // (On a phone a page's keys stand under its numbers: scrolled to, as a finger would.)
-    await k(
-      `[...document.querySelectorAll(".page-window .scene-act")].find((e) => /Lead this band/.test(e.textContent ?? ""))?.scrollIntoView({ block: "center" })`,
-    );
-    await page.waitForTimeout(500);
-    if (await pressText(".page-window .scene-act", /Lead this band/, "⛺ Lead this band")) {
+    say(`the band's land: ${JSON.stringify(bd0.land)}; a wild grain there: ${bd0.grain}`);
+    await look("21-band", "the band at its camp");
+    await throttled("a band led");
+    // —— ⛺ Lead this band, from a camp's own page in the god game: that camp's band led, on its land (the last camp of the
+    // land, so that the asked one is told from the first, which the mode leads unasked).
+    {
+      await k("globalThis.causalis.lineMode.wake()");
       await until(
-        "that camp's band led",
-        async () => {
-          const b = await band();
-          return !!b?.leading && b.land?.cell === at;
-        },
-        40000,
+        "back in the god game",
+        async () => !(await k<boolean>("document.body.classList.contains('lining')")),
+        20000,
       );
-      const led = (await band()) ?? { land: null };
-      check(
-        led.land?.cell === at && (led.land as { id?: number }).id === id,
-        `the camp asked by its page is the one led (camp ${at}:${id} → ${JSON.stringify(led.land)})`,
+      const at = bd0.land!.cell,
+        camps = await k<{ id: number }[]>(
+          `globalThis.causalis.client.query({ type: "towns.land", args: { cell: ${at} } }).then((p) => p.camps.map((c) => ({ id: c.id })))`,
+        ),
+        id = camps[camps.length - 1]?.id ?? 0;
+      await k(`globalThis.causalis.open("camp:${at}:${id}")`);
+      await page.waitForTimeout(2500);
+      await look("21b-camp-page", "a camp's page, its key to lead its band");
+      // (On a phone a page's keys stand under its numbers: scrolled to, as a finger would.)
+      await k(
+        `[...document.querySelectorAll(".page-window .scene-act")].find((e) => /Lead this band/.test(e.textContent ?? ""))?.scrollIntoView({ block: "center" })`,
       );
-      await page.waitForTimeout(1200);
-      await look("21c-camp-led", "the camp's own band led, its card");
-      await k("globalThis.causalis.lineMode.close()");
-    }
-  }
-  say(`the band's step: ${bd0.stepMs.toFixed(2)} ms`);
-  // (At night: 🌙 Sleep in the hunt's place, and the night passes in a few seconds, seen.)
-  if ((await band())!.hour < 7.5 || (await band())!.hour >= 18) {
-    check(
-      (await band())!.offers[0]?.label === "Sleep",
-      `by night, Sleep in the hunt's place (${(await band())!.offers[0]?.label})`,
-    );
-    await press(".line-act-0", "🌙 Sleep");
-    const slept = Date.now();
-    await until(
-      "the morning, slept to",
-      async () => {
-        const h = (await band())!.hour;
-        return h >= 7.5 && h < 18;
-      },
-      20000,
-    );
-    say(`the night slept through in ${((Date.now() - slept) / 1000).toFixed(1)} s`);
-    await look("21a-slept", "the morning after sleeping");
-  }
-  // (The hunters sent after a beast looked at, by day.)
-  await k("globalThis.causalis.lineMode.bandMorning()");
-  let hunted: { words: string; good: boolean } | null = null;
-  for (let a = 0; a < 24 && !hunted; a++) {
-    const c = (await band())!.camp;
-    await k(
-      `globalThis.causalis.lineMode.bandLook(${c.x + Math.cos(a) * (12 + a * 2)}, ${c.z + Math.sin(a) * (12 + a * 2)})`,
-    );
-    await page.waitForTimeout(60);
-    if ((await band())!.quarry !== null)
-      hunted = await k("globalThis.causalis.lineMode.bandAct(0)");
-  }
-  check(
-    !!hunted?.good,
-    `the hunters sent: ${hunted?.words ?? "no beast they could take was found about the camp"}`,
-  );
-  await page.waitForTimeout(1200);
-  await look("21b-hunt", "the hunters sent");
-  // (The gatherers to the grass; a day and a half; walked on; some days; walked back: the seed come up, where a grain grows.)
-  await k("globalThis.causalis.lineMode.bandAct(2)");
-  await k("globalThis.causalis.lineMode.bandLive(1.5)");
-  const bd1 = (await band())!,
-    old = bd1.seed.find((s) => s.n >= 3);
-  check(!!old, `seed dropped about the fire (${JSON.stringify(bd1.seed)})`);
-  if (old) {
-    await k("globalThis.causalis.lineMode.bandMorning()");
-    let c = (await band())!.camp;
-    if (Math.hypot(c.x - old.x, c.z - old.z) < 30) {
-      await k(`globalThis.causalis.lineMode.bandLook(${old.x + 60}, ${old.z})`);
-      const w = await k<{ good: boolean; words: string }>(
-        "globalThis.causalis.lineMode.bandAct(1)",
-      );
-      check(w.good, `walked on: ${w.words}`);
-    }
-    await k("globalThis.causalis.lineMode.bandLive(4.5)");
-    await k("globalThis.causalis.lineMode.bandMorning()");
-    c = (await band())!.camp;
-    if (!(await band())!.sprouted && Math.hypot(c.x - old.x, c.z - old.z) >= 10) {
-      await k(`globalThis.causalis.lineMode.bandLook(${old.x}, ${old.z + 6})`);
-      const w = await k<{ good: boolean; words: string }>(
-        "globalThis.causalis.lineMode.bandAct(1)",
-      );
-      check(w.good, `walked back to the old camp: ${w.words}`);
-    }
-    await k("globalThis.causalis.lineMode.bandLive(1.5)");
-    const bd2 = (await band())!;
-    check(
-      !!bd2.sprouted === bd2.grain,
-      `the seed come up where a wild grain grows (${bd2.grain}): ${JSON.stringify(bd2.sprouted)}`,
-    );
-    say(
-      `after ${bd2.day} days: ${bd2.people} in the band (${bd2.born} born), ${bd2.food.toFixed(1)} days of food`,
-    );
-    if (bd2.sprouted)
-      await k(`globalThis.causalis.lineMode.bandLook(${bd2.sprouted.x}, ${bd2.sprouted.z})`);
-    await page.waitForTimeout(1200);
-    await look("22-sprouted", "the grain come up at the old camp");
-    if (bd2.sprouted && !bd2.land?.sows) {
-      await k("globalThis.causalis.lineMode.sow()");
-      await page.waitForTimeout(300);
-      await look("23-sow", "Teach your land to sow?");
-      await pressText(".line-card-go, .line-card-other", /Teach it/, "🌱 Teach it");
-      await until("the land taught", async () => !!(await band())?.taught, 20000);
-      await page.waitForTimeout(400);
-      await look("24-taught", "your land sows");
-      const kept = await k<string[]>(
-        `globalThis.causalis.client.saves().then((s) => s.map((x) => x.name))`,
-      );
-      check(
-        kept.some((n) => /before your band sowed/.test(n)),
-        `the world before it kept (${kept.slice(0, 3).join(", ")})`,
-      );
-
-      // —— The line's story (S7): six pages, ‹ and › through them all; the years run until the land's first village
-      // comes, and Go and see opens the god game's page of it.
-      await pressText(".line-card-go, .line-card-other", /story/, "📜 Your line's story");
       await page.waitForTimeout(500);
-      const pageNow = () => k<string | null>("globalThis.causalis.lineMode.state().page");
-      check(
-        (await pageNow()) === "story:village",
-        `the story opened at its village (${await pageNow()})`,
-      );
-      for (const want of ["story:town", "story:realm"]) {
-        await pressText(".line-page .line-link", / ›$/, "the story's next ›");
-        await page.waitForTimeout(250);
-        check((await pageNow()) === want, `› on to ${want} (${await pageNow()})`);
-      }
-      for (const want of [
-        "story:town",
-        "story:village",
-        "story:band",
-        "story:body",
-        "story:cell",
-      ]) {
-        await pressText(".line-page .line-link", /^‹ /, "the story's ‹");
-        await page.waitForTimeout(250);
-        check((await pageNow()) === want, `‹ back to ${want} (${await pageNow()})`);
-        await look(`25-${want.slice(6)}`, `the story: ${want}`);
-      }
-      // (The years run, a year at a time, until the land's first village comes: its turn among the lands that sow.)
-      await k("globalThis.causalis.lineMode.close()");
-      type Village = { ref: string; name: string; founded: number };
-      let village = null as Village | null;
-      for (let y = 0; y < 12 && !village; y++) {
-        const t = await k<number>("globalThis.causalis.client.status?.t ?? 0");
-        await k(`globalThis.causalis.client.advance(${t + 365 * 86400})`);
-        await k("globalThis.causalis.lineMode.story('story:village')");
-        village =
-          (await k<{ village: Village | null } | null>("globalThis.causalis.lineMode.storyWorld()"))
-            ?.village ?? null;
-      }
-      check(
-        !!village,
-        `the band's land has its first village: ${village ? `${village.name}, the year ${village.founded}` : "not in twelve years"}`,
-      );
-      await page.waitForTimeout(400);
-      await look("26-village", "the story: its village come");
-      // (S8: its stars, the seventh page, reached by › from its realm and back.)
-      await k("globalThis.causalis.lineMode.story('story:realm')");
-      await page.waitForTimeout(300);
-      await pressText(".line-page .line-link", / ›$/, "the story's next ›");
-      await page.waitForTimeout(300);
-      check((await pageNow()) === "story:stars", `› on to its stars (${await pageNow()})`);
-      say(
-        `its stars: ${JSON.stringify(await k("globalThis.causalis.lineMode.storyStars()")).slice(0, 160)}`,
-      );
-      await look("26b-stars", "the story: its stars");
-      await k("globalThis.causalis.lineMode.story('story:village')");
-      await page.waitForTimeout(300);
-      if (village) {
-        await pressText(".line-page button.line-link", /Go and see/, "🏘️ Go and see");
+      if (await pressText(".page-window .scene-act", /Lead this band/, "⛺ Lead this band")) {
         await until(
-          "the god game's page of the village",
-          async () =>
-            (await k<string | null>("globalThis.causalis.pageOpen() ?? null")) === village!.ref,
-          20000,
+          "that camp's band led",
+          async () => {
+            const b = await band();
+            return !!b?.leading && b.land?.cell === at;
+          },
+          40000,
+        );
+        const led = (await band()) ?? { land: null };
+        check(
+          led.land?.cell === at && (led.land as { id?: number }).id === id,
+          `the camp asked by its page is the one led (camp ${at}:${id} → ${JSON.stringify(led.land)})`,
+        );
+        await page.waitForTimeout(1200);
+        await look("21c-camp-led", "the camp's own band led, its card");
+        await k("globalThis.causalis.lineMode.close()");
+      }
+    }
+    say(`the band's step: ${bd0.stepMs.toFixed(2)} ms`);
+    // (At night: 🌙 Sleep in the hunt's place, and the night passes in a few seconds, seen.)
+    if ((await band())!.hour < 7.5 || (await band())!.hour >= 18) {
+      check(
+        (await band())!.offers[0]?.label === "Sleep",
+        `by night, Sleep in the hunt's place (${(await band())!.offers[0]?.label})`,
+      );
+      await press(".line-act-0", "🌙 Sleep");
+      const slept = Date.now();
+      await until(
+        "the morning, slept to",
+        async () => {
+          const h = (await band())!.hour;
+          return h >= 7.5 && h < 18;
+        },
+        20000,
+      );
+      say(`the night slept through in ${((Date.now() - slept) / 1000).toFixed(1)} s`);
+      await look("21a-slept", "the morning after sleeping");
+    }
+    // (The hunters sent after a beast looked at, by day.)
+    await k("globalThis.causalis.lineMode.bandMorning()");
+    let hunted: { words: string; good: boolean } | null = null;
+    for (let a = 0; a < 24 && !hunted; a++) {
+      const c = (await band())!.camp;
+      await k(
+        `globalThis.causalis.lineMode.bandLook(${c.x + Math.cos(a) * (12 + a * 2)}, ${c.z + Math.sin(a) * (12 + a * 2)})`,
+      );
+      await page.waitForTimeout(60);
+      if ((await band())!.quarry !== null)
+        hunted = await k("globalThis.causalis.lineMode.bandAct(0)");
+    }
+    check(
+      !!hunted?.good,
+      `the hunters sent: ${hunted?.words ?? "no beast they could take was found about the camp"}`,
+    );
+    await page.waitForTimeout(1200);
+    await look("21b-hunt", "the hunters sent");
+    // (The gatherers to the grass; a day and a half; walked on; some days; walked back: the seed come up, where a grain grows.)
+    await k("globalThis.causalis.lineMode.bandAct(2)");
+    await k("globalThis.causalis.lineMode.bandLive(1.5)");
+    const bd1 = (await band())!,
+      old = bd1.seed.find((s) => s.n >= 3);
+    check(!!old, `seed dropped about the fire (${JSON.stringify(bd1.seed)})`);
+    if (old) {
+      await k("globalThis.causalis.lineMode.bandMorning()");
+      let c = (await band())!.camp;
+      if (Math.hypot(c.x - old.x, c.z - old.z) < 30) {
+        await k(`globalThis.causalis.lineMode.bandLook(${old.x + 60}, ${old.z})`);
+        const w = await k<{ good: boolean; words: string }>(
+          "globalThis.causalis.lineMode.bandAct(1)",
+        );
+        check(w.good, `walked on: ${w.words}`);
+      }
+      await k("globalThis.causalis.lineMode.bandLive(4.5)");
+      await k("globalThis.causalis.lineMode.bandMorning()");
+      c = (await band())!.camp;
+      if (!(await band())!.sprouted && Math.hypot(c.x - old.x, c.z - old.z) >= 10) {
+        await k(`globalThis.causalis.lineMode.bandLook(${old.x}, ${old.z + 6})`);
+        const w = await k<{ good: boolean; words: string }>(
+          "globalThis.causalis.lineMode.bandAct(1)",
+        );
+        check(w.good, `walked back to the old camp: ${w.words}`);
+      }
+      await k("globalThis.causalis.lineMode.bandLive(1.5)");
+      const bd2 = (await band())!;
+      check(
+        !!bd2.sprouted === bd2.grain,
+        `the seed come up where a wild grain grows (${bd2.grain}): ${JSON.stringify(bd2.sprouted)}`,
+      );
+      say(
+        `after ${bd2.day} days: ${bd2.people} in the band (${bd2.born} born), ${bd2.food.toFixed(1)} days of food`,
+      );
+      if (bd2.sprouted)
+        await k(`globalThis.causalis.lineMode.bandLook(${bd2.sprouted.x}, ${bd2.sprouted.z})`);
+      await page.waitForTimeout(1200);
+      await look("22-sprouted", "the grain come up at the old camp");
+      if (bd2.sprouted && !bd2.land?.sows) {
+        await k("globalThis.causalis.lineMode.sow()");
+        await page.waitForTimeout(300);
+        await look("23-sow", "Teach your land to sow?");
+        await pressText(".line-card-go, .line-card-other", /Teach it/, "🌱 Teach it");
+        await until("the land taught", async () => !!(await band())?.taught, 20000);
+        await page.waitForTimeout(400);
+        await look("24-taught", "your land sows");
+        const kept = await k<string[]>(
+          `globalThis.causalis.client.saves().then((s) => s.map((x) => x.name))`,
         );
         check(
-          !(await k<boolean>("globalThis.causalis.lineMode.state().on")),
-          "the mode left for the god game's own page",
+          kept.some((n) => /before your band sowed/.test(n)),
+          `the world before it kept (${kept.slice(0, 3).join(", ")})`,
         );
-        await look("27-village-page", "the village's page in the god game");
-        await k("globalThis.causalis.closePage()");
+
+        // —— The line's story (S7): six pages, ‹ and › through them all; the years run until the land's first village
+        // comes, and Go and see opens the god game's page of it.
+        await pressText(".line-card-go, .line-card-other", /story/, "📜 Your line's story");
+        await page.waitForTimeout(500);
+        const pageNow = () => k<string | null>("globalThis.causalis.lineMode.state().page");
+        check(
+          (await pageNow()) === "story:village",
+          `the story opened at its village (${await pageNow()})`,
+        );
+        for (const want of ["story:town", "story:realm"]) {
+          await pressText(".line-page .line-link", / ›$/, "the story's next ›");
+          await page.waitForTimeout(250);
+          check((await pageNow()) === want, `› on to ${want} (${await pageNow()})`);
+        }
+        for (const want of [
+          "story:town",
+          "story:village",
+          "story:band",
+          "story:body",
+          "story:cell",
+        ]) {
+          await pressText(".line-page .line-link", /^‹ /, "the story's ‹");
+          await page.waitForTimeout(250);
+          check((await pageNow()) === want, `‹ back to ${want} (${await pageNow()})`);
+          await look(`25-${want.slice(6)}`, `the story: ${want}`);
+        }
+        // (The years run, a year at a time, until the land's first village comes: its turn among the lands that sow.)
+        await k("globalThis.causalis.lineMode.close()");
+        type Village = { ref: string; name: string; founded: number };
+        let village = null as Village | null;
+        for (let y = 0; y < 12 && !village; y++) {
+          const t = await k<number>("globalThis.causalis.client.status?.t ?? 0");
+          await k(`globalThis.causalis.client.advance(${t + 365 * 86400})`);
+          await k("globalThis.causalis.lineMode.story('story:village')");
+          village =
+            (
+              await k<{ village: Village | null } | null>(
+                "globalThis.causalis.lineMode.storyWorld()",
+              )
+            )?.village ?? null;
+        }
+        check(
+          !!village,
+          `the band's land has its first village: ${village ? `${village.name}, the year ${village.founded}` : "not in twelve years"}`,
+        );
+        await page.waitForTimeout(400);
+        await look("26-village", "the story: its village come");
+        // (C1, S8: its year, then its stars, reached by › from its realm.)
+        await k("globalThis.causalis.lineMode.story('story:realm')");
+        await page.waitForTimeout(300);
+        await pressText(".line-page .line-link", / ›$/, "the story's next ›");
+        await page.waitForTimeout(300);
+        check((await pageNow()) === "story:year", `› on to its year (${await pageNow()})`);
+        await look("26a-year", "the story: its year");
+        await pressText(".line-page .line-link", / ›$/, "the story's next ›");
+        await page.waitForTimeout(300);
+        check((await pageNow()) === "story:stars", `› on to its stars (${await pageNow()})`);
+        say(
+          `its stars: ${JSON.stringify(await k("globalThis.causalis.lineMode.storyStars()")).slice(0, 160)}`,
+        );
+        await look("26b-stars", "the story: its stars");
+        await k("globalThis.causalis.lineMode.story('story:village')");
+        await page.waitForTimeout(300);
+        if (village) {
+          await pressText(".line-page button.line-link", /Go and see/, "🏘️ Go and see");
+          await until(
+            "the god game's page of the village",
+            async () =>
+              (await k<string | null>("globalThis.causalis.pageOpen() ?? null")) === village!.ref,
+            20000,
+          );
+          check(
+            !(await k<boolean>("globalThis.causalis.lineMode.state().on")),
+            "the mode left for the god game's own page",
+          );
+          await look("27-village-page", "the village's page in the god game");
+          await k("globalThis.causalis.closePage()");
+        }
       }
     }
-  }
-  await k("globalThis.causalis.lineMode.close()");
-  await k("globalThis.causalis.lineMode.wake()");
-  await page.waitForTimeout(600);
-  check(!(await k<boolean>("globalThis.causalis.lineMode.state().on")), "woken from the band");
+    await k("globalThis.causalis.lineMode.close()");
+    await k("globalThis.causalis.lineMode.wake()");
+    await page.waitForTimeout(600);
+    check(!(await k<boolean>("globalThis.causalis.lineMode.state().on")), "woken from the band");
 
-  // —— On the desk: in again by a line of the tree of life, and the line kept. (The clock as it stands now: the band's land
-  // taught to sow is a command, and the world went on by it.)
-  const tAgain = await k<number>("globalThis.causalis.client.status?.t ?? -1");
-  say(`the world's clock after the band: ${t0} → ${tAgain} s`);
-  if (!phone) {
-    await k(`globalThis.causalis.open("world:tree")`);
-    await page.waitForTimeout(2500);
-    const opened = await k<boolean>(
-      `(() => { const r = [...document.querySelectorAll(".phylo-row")].find((x) => /walk|beast|fish|swim/i.test(x.textContent ?? "")) ?? document.querySelectorAll(".phylo-row")[8]; if (!r) return false; r.click(); return true; })()`,
-    );
-    check(opened, "a line of the tree of life opened");
-    await page.waitForTimeout(2500);
-    if (await pressText(".page-actions button", /Live this line/, "🧬 Live this line")) {
-      await until(
-        "the mode entered from the tree",
-        async () => !!(await k<boolean>("globalThis.causalis.lineMode.state().on")),
-        30000,
+    // —— On the desk: in again by a line of the tree of life, and the line kept. (The clock as it stands now: the band's land
+    // taught to sow is a command, and the world went on by it.)
+    const tAgain = await k<number>("globalThis.causalis.client.status?.t ?? -1");
+    say(`the world's clock after the band: ${t0} → ${tAgain} s`);
+    if (!phone) {
+      await k(`globalThis.causalis.open("world:tree")`);
+      await page.waitForTimeout(2500);
+      const opened = await k<boolean>(
+        `(() => { const r = [...document.querySelectorAll(".phylo-row")].find((x) => /walk|beast|fish|swim/i.test(x.textContent ?? "")) ?? document.querySelectorAll(".phylo-row")[8]; if (!r) return false; r.click(); return true; })()`,
       );
-      await page.waitForTimeout(800);
-      await look("18-from-tree", "entered from a line of the tree");
-      await k("globalThis.causalis.lineMode.close()");
-      await k("globalThis.causalis.lineMode.wake()");
-      await page.waitForTimeout(500);
-      check(
-        (await k<number>("globalThis.causalis.client.status?.t ?? -1")) === tAgain,
-        "the clock still where it was after a second waking",
-      );
+      check(opened, "a line of the tree of life opened");
+      await page.waitForTimeout(2500);
+      if (await pressText(".page-actions button", /Live this line/, "🧬 Live this line")) {
+        await until(
+          "the mode entered from the tree",
+          async () => !!(await k<boolean>("globalThis.causalis.lineMode.state().on")),
+          30000,
+        );
+        await page.waitForTimeout(800);
+        await look("18-from-tree", "entered from a line of the tree");
+        await k("globalThis.causalis.lineMode.close()");
+        await k("globalThis.causalis.lineMode.wake()");
+        await page.waitForTimeout(500);
+        check(
+          (await k<number>("globalThis.causalis.client.status?.t ?? -1")) === tAgain,
+          "the clock still where it was after a second waking",
+        );
+      }
     }
   }
   // —— Make it so (S4): the line laid into a new world from its beginning, the old world kept; the new world opened from
@@ -908,6 +1000,14 @@ for (const view of [
     const before = page.url();
     await press(".line-wake", "☀️ Wake");
     await page.waitForTimeout(300);
+    // (A name for the people the line may become: given on the desk, left to the world on the phone.)
+    const naming = await box(".line-name input");
+    check(!!naming, "a field to name your people, beside Make it so");
+    if (naming && !phone) {
+      await tap(naming.x, naming.y);
+      await page.keyboard.type("Ossa");
+    }
+    await look("18a-name", "Wake or make it so, a name for your people");
     const t0m = Date.now();
     if (await pressText(".line-card-go, .line-card-other", /Make it so/, "✨ Make it so")) {
       await until(
@@ -921,7 +1021,10 @@ for (const view of [
       );
       say(`the rises card: ${told}`);
       check(
-        /Your line rises: the .*folk|beside your world.s people/.test(told),
+        (phone
+          ? /Your line rises: the (?!.*folk)|beside your world.s people/
+          : /Your line rises: the ossa folk.*named for your line|beside your world.s people/
+        ).test(told),
         "the card names the people",
       );
       if (/Your line rises/.test(told))

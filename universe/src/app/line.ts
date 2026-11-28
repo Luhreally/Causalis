@@ -19,6 +19,7 @@ import type { CampNear } from "../bridge/index.ts";
 import { DepthLayer, type Beyond } from "../render/line-depth.ts";
 import { CellJuice } from "../render/line-juice.ts";
 import { LineSound } from "./line-sound.ts";
+import { councilOf, yearWent, yearWords, type Council } from "./line-realm.ts";
 import { drawPortrait, el } from "../ui/index.ts";
 import type { PlaceLoading } from "../ui/place-loading.ts";
 import { YEAR } from "../kernel/index.ts";
@@ -133,6 +134,11 @@ type SagaData = {
   deaths: number;
   /** The tree of life's line its body was founded from (a line made so is its daughter; absent: none founded). */
   node?: number | null;
+  /** What the hand named its people, should they rise of it (S5; absent: unnamed, named as the world names their kind). */
+  named?: string;
+  /** Its realm's years ruled (C1): this year's word (the world's year it was given in), what last year came to, and
+   * whether the world was kept before the first. */
+  realm?: { year: number; said: string | null; last: string[]; kept: boolean };
   /** The band led (S6): its people, its land (and the land's cell), how many, born, the grain seen, the land taught. */
   tribe?: {
     people: string;
@@ -220,6 +226,7 @@ export function installLine(d: LineDeps, Loading: typeof PlaceLoading): LineFlow
     storyWorld: LineStory | null = null,
     /** The realm holding the band's land at the stars, as last asked (S8). */
     storyStars: LineStars | null = null,
+    storyCouncil: Council | null = null,
     /** A land the look tools point the story at (none: the band's, or the cradle). */
     storyCell: number | undefined;
   const noises = new LineSound(d.sound);
@@ -449,6 +456,26 @@ export function installLine(d: LineDeps, Loading: typeof PlaceLoading): LineFlow
     head.append(el("h3", "", title), q);
     row.append(...keys);
     box.append(head, ...words.map((w) => el("p", "", w)), row);
+    return box;
+  };
+  /**
+   * A stage's payoff (P1, the second fun audit): the card that marks a step, with what your line came to there added up,
+   * its picture, words, and its keys (the first the one to go on by).
+   */
+  const payoff = (
+    title: string,
+    picture: Element | null,
+    rows: readonly (readonly [string, string])[],
+    words: readonly string[],
+    keys: readonly HTMLButtonElement[],
+    help: string,
+  ) => {
+    const box = card(title, words, keys, help),
+      tally = el("dl", "line-tally");
+    box.classList.add("line-payoff");
+    for (const [k, v] of rows) tally.append(el("dt", "", k), el("dd", "", v));
+    const head = box.querySelector(".line-card-head")!;
+    head.after(...(picture ? [picture, tally] : [tally]));
     return box;
   };
   const key = (text: string, run: () => void, other = false) => {
@@ -709,8 +736,9 @@ export function installLine(d: LineDeps, Loading: typeof PlaceLoading): LineFlow
       hud.say(last, !/died/.test(last));
       if (/child is born/.test(last)) {
         hud.pop();
-        noises.play("split");
+        noises.play("grow");
       }
+      if (/died/.test(last)) noises.play("loss");
       if (/come up/.test(last)) {
         noises.play("pop");
         guide.did("seed");
@@ -787,19 +815,39 @@ export function installLine(d: LineDeps, Loading: typeof PlaceLoading): LineFlow
     const ok = (r as { ok?: boolean }).ok !== false;
     taught = ok;
     if (ok) guide.did("sow");
+    const keys = [
+      key("Stay with the band", () => layer(null), true),
+      key("📜 Your line's story", () => void openStory("story:village")),
+    ];
+    if (!ok) {
+      layer(
+        card(
+          "Your land could not be taught",
+          [`${(r as { error?: string }).error ?? "It was turned back."}`],
+          keys,
+          "help:band",
+        ),
+      );
+      return;
+    }
+    // (The band's stage done: its payoff, what the band came to, and the step it took for its people.)
+    const tribe = saga?.tribe;
+    noises.play("rise");
     layer(
-      card(
-        ok ? "Your land sows" : "Your land could not be taught",
-        ok
-          ? [
-              `The people of ${band?.info?.land ?? "your land"} sow now. In their own time they settle, and when its turn comes, their first village is founded: wake and watch for it.`,
-              "Your world as it was before is kept in your saves.",
-            ]
-          : [`${(r as { error?: string }).error ?? "It was turned back."}`],
+      payoff(
+        "Your land sows",
+        null,
         [
-          key("Stay with the band", () => layer(null), true),
-          key("📜 Your line's story", () => void openStory("story:village")),
+          ["Its band", `${tribe?.size ?? 0} people`],
+          ["Born to it", `${tribe?.born ?? 0}`],
+          ["Its land", band?.info?.land ?? "your land"],
+          ["Your line", `the people of ${band?.info?.land ?? "your land"}, who sow`],
         ],
+        [
+          `The people of ${band?.info?.land ?? "your land"} sow now. In their own time they settle, and when its turn comes, their first village is founded: wake and watch for it.`,
+          "Your world as it was before is kept in your saves.",
+        ],
+        keys,
         "help:band",
       ),
     );
@@ -821,8 +869,14 @@ export function installLine(d: LineDeps, Loading: typeof PlaceLoading): LineFlow
       band: s?.tribe ?? null,
       world: storyWorld,
       stars: storyStars,
+      council: storyCouncil,
+      year: {
+        said: s?.realm?.year === yearNow() ? s.realm.said : null,
+        last: s?.realm?.last ?? [],
+      },
     };
   };
+  const yearNow = () => Math.floor((d.client.status?.t ?? 0) / YEAR);
   /** The story opened at a page, what came of the band's land asked of the world first. */
   const openStory = async (at: string = STORY[0]) => {
     guide.did("story");
@@ -833,6 +887,16 @@ export function installLine(d: LineDeps, Loading: typeof PlaceLoading): LineFlow
       d.client.query<LineStory | null>({ type: "line.story", args }),
       d.client.query<LineStars | null>({ type: "line.stars", args }),
     ]);
+    // (Its realm's council this year, C1: what it could build, whom court, whom fight, read off the world.)
+    const realm = storyWorld?.realm;
+    storyCouncil = realm
+      ? await councilOf(
+          d.client,
+          realm.ref,
+          realm.ruler,
+          storyWorld?.town?.ref ?? storyWorld?.village?.ref ?? null,
+        )
+      : null;
     layer(null);
     openPage(at);
   };
@@ -862,13 +926,121 @@ export function installLine(d: LineDeps, Loading: typeof PlaceLoading): LineFlow
     return b;
   };
 
+  /** The realm's year (C1): a council's choice made by its own command, or the year let pass and what it came to told. */
+  let ruling = false;
+  const ruleKey = (text: string, choice: number | "pass", can: boolean) => {
+    const b = el("button", choice === "pass" ? "line-link line-link-go" : "line-link", text);
+    // (Drawn anew as the page is read again, mid-word too: held only by the guard below, never drawn held.)
+    b.disabled = !can;
+    b.onclick = async () => {
+      // (One at a time: a word, or a year, is under way until it is told; the keys held meanwhile.)
+      if (ruling) return;
+      ruling = true;
+      document
+        .querySelectorAll<HTMLButtonElement>(
+          ".line-page .line-council button, .line-page .line-link-go",
+        )
+        .forEach((x) => (x.disabled = true));
+      try {
+        await (choice === "pass" ? passYear() : decide(choice));
+      } finally {
+        ruling = false;
+      }
+    };
+    return b;
+  };
+  /** The world kept in the saves before the hand first rules its realm's years: they change it, as teaching to sow does. */
+  const keepBeforeRule = async () => {
+    if (!saga || saga.realm?.kept) return;
+    hud.say("Your world is kept in your saves first, as it is now…", true);
+    const params = new URLSearchParams(location.search);
+    await d.client
+      .save(
+        `${params.get("universe") ?? "earth"}:${params.get("seed") ?? "first light"}:before your realm's years`,
+      )
+      .catch(() => undefined);
+    saga.realm = { year: -1, said: null, last: [], ...saga.realm, kept: true };
+  };
+  const decide = async (i: number) => {
+    const ch = storyCouncil?.choices[i];
+    if (!ch || !saga) return;
+    await keepBeforeRule();
+    const r = await d.client
+      .command(ch.type, ch.args)
+      .catch((e: unknown) => ({ ok: false, error: String(e) }));
+    const ok = (r as { ok?: boolean }).ok !== false;
+    if (ok) {
+      saga.realm = {
+        ...saga.realm!,
+        year: yearNow(),
+        said: ch.label.replace(/^./, (c) => c.toLowerCase()),
+      };
+      noises.play("pop");
+      guide.did("rule");
+    }
+    hud.say(
+      ok ? `Done: ${ch.label}.` : `It was turned back: ${(r as { error?: string }).error ?? ""}`,
+      !ok,
+    );
+    void keepSaga();
+    await openStory("story:year");
+  };
+  const passYear = async () => {
+    const was = storyCouncil;
+    if (!saga || !was) return;
+    await keepBeforeRule();
+    layer(card("A year passes…", [`${was.name} lives its year.`], [], "help:year"));
+    await d.client.advance((d.client.status?.t ?? 0) + YEAR).catch(() => undefined);
+    await openStory("story:year");
+    const now = storyCouncil;
+    if (!now) return;
+    const words = yearWords(was.tally, now.tally),
+      went = yearWent(was.tally, now.tally);
+    saga.realm = { ...saga.realm!, said: null, last: words };
+    void keepSaga();
+    noises.play(went === "grew" ? "grow" : went === "fell" ? "loss" : "pop");
+    layer(
+      payoff(
+        went === "grew"
+          ? `${now.name} grew`
+          : went === "fell"
+            ? `${now.name} lost ground`
+            : `${now.name} held its own`,
+        null,
+        [
+          ["The year", `${yearNow()}`],
+          ["Its people", now.tally.people.toLocaleString("en")],
+          ["Its lands", `${now.tally.lands}`],
+          ["Its place", `${now.tally.rank} of ${now.tally.of}`],
+        ],
+        words.length ? words : ["A quiet year: nothing moved."],
+        [
+          key("Its council", () => void openStory("story:year"), true),
+          key("⏭ Another year", () => void passYear()),
+        ],
+        "help:year",
+      ),
+    );
+  };
+
   const stageDone = () => {
     if (!saga) return;
     saga.stage = "body";
     void keepSaga();
+    // (The cell's stage done: its payoff, what the line came to as a cell, and its picture.)
+    const t = traits ?? saga.first;
+    noises.play("rise");
     layer(
-      card(
+      payoff(
         "The first bodies",
+        cellPicture(t, null),
+        [
+          ["Generations", `${saga.gens.length + 1}, each a daughter you chose`],
+          ["It came to", wayWord(t)],
+          ["Its size", `${t.size.toFixed(1)} µm across`],
+          ["It ate", `${saga.ate} specks`],
+          ["Your line", "one of the cells your world's first bodies are made of"],
+        ],
         [
           `${myWords(my)[0]!.toUpperCase()}${myWords(my).slice(1)}, your line's cells live together as one: the first bodies of your world are coming.`,
           "Found your line's first body, among the first bodies your world's seas grew; or stay a while in the drop.",
@@ -1077,12 +1249,22 @@ export function installLine(d: LineDeps, Loading: typeof PlaceLoading): LineFlow
     });
     void keepSaga();
     guide.did("young");
+    noises.play("grow");
     if (my <= 0) {
       leaveBody();
       guide.did("now");
+      const first = saga.bodies[0]!;
+      noises.play("rise");
       layer(
-        card(
+        payoff(
           "Your line has come to now",
+          beastPicture(next.body, null),
+          [
+            ["Bodies lived", `${saga.bodies.length}, from ${first.name}, ${myWords(first.my)}`],
+            ["It weighs", `${massText(first.mass)} then, ${massText(next.genome.mass)} now`],
+            ["It lives as", `a ${next.way}`],
+            ["Your line", `${next.name}, living in your world today`],
+          ],
           [
             `Your line lives on in your world today: ${next.name}, ${massText(next.genome.mass)}. Your line is kept.`,
             "Your world's people live in bands now. Lead one: feed it, see the seed it drops come up, and teach its land to sow. What comes of its land is your line's story.",
@@ -1235,7 +1417,9 @@ export function installLine(d: LineDeps, Loading: typeof PlaceLoading): LineFlow
       f = facts,
       s = saga,
       L = (text: string, r: string) => pages.link(text, r);
-    const told = ref.startsWith("story:") ? storyPage(ref, storyNow(), L, goSee, sendShip) : null;
+    const told = ref.startsWith("story:")
+      ? storyPage(ref, storyNow(), L, goSee, sendShip, ruleKey)
+      : null;
     if (told) return told;
     if (ref === "cell" && t && f && s) {
       const c = drop && hand ? heldCell(drop, hand) : null,
@@ -1500,6 +1684,8 @@ export function installLine(d: LineDeps, Loading: typeof PlaceLoading): LineFlow
       if (hand.ate > ateSeen) {
         noises.play("chomp");
         juice?.bite();
+        // (What the line has eaten as a cell, all its generations: its stage's payoff adds it up.)
+        if (saga) saga.ate += hand.ate - ateSeen;
       }
       ateSeen = hand.ate;
       played += dt;
@@ -1677,23 +1863,34 @@ export function installLine(d: LineDeps, Loading: typeof PlaceLoading): LineFlow
   };
 
   // (Wake, or Make it so: once the line has come anywhere, both are offered; the world it was lived in is kept either way.)
-  hud.onWake = () =>
-    saga && (saga.gens.length || saga.body)
-      ? layer(
-          card(
-            "Wake, or make it so?",
-            [
-              "☀️ Wake: back to your world as it is. Nothing in it has changed.",
-              "✨ Make it so: a new world is made from your world's beginning, with your line in it. What your cell ate is what prospered in its first seas, and the ways your body lived prospered in their ages. Your world as it is now is kept.",
-            ],
-            [
-              key("☀️ Wake", () => void flow.wake(), true),
-              key("✨ Make it so", () => void makeItSo()),
-            ],
-            "help:makeso",
-          ),
-        )
-      : void flow.wake();
+  hud.onWake = () => {
+    if (!saga || !(saga.gens.length || saga.body)) return void flow.wake();
+    const asked = card(
+      "Wake, or make it so?",
+      [
+        "☀️ Wake: back to your world as it is. Nothing in it has changed.",
+        "✨ Make it so: a new world is made from your world's beginning, with your line in it. What your cell ate is what prospered in its first seas, and the ways your body lived prospered in their ages. Your world as it is now is kept.",
+      ],
+      [key("☀️ Wake", () => void flow.wake(), true), key("✨ Make it so", () => void makeItSo())],
+      "help:makeso",
+    );
+    // (With a body: a name for the people your line may become; left empty, they are named as the world names their kind.)
+    if (saga.body) {
+      const label = el("label", "line-name"),
+        input = document.createElement("input");
+      input.type = "text";
+      input.maxLength = 24;
+      input.placeholder = "or as the world names them";
+      input.value = saga.named ?? "";
+      input.oninput = () => {
+        const v = input.value.replace(/[^A-Za-z -]/g, "").trim();
+        if (saga) saga.named = v || undefined;
+      };
+      label.append(el("span", "", "Name your people, should they rise:"), input);
+      asked.querySelector(".line-card-row")?.before(label);
+    }
+    layer(asked);
+  };
   /** The line made so: the world's seed with the acts the line lived, the world kept, the new world opened from year 0. */
   const makeItSo = async () => {
     if (!saga) return;
@@ -1706,7 +1903,7 @@ export function installLine(d: LineDeps, Loading: typeof PlaceLoading): LineFlow
         node: saga.node ?? null,
         // (Its body as you leave it: the one your line lives in now; and what you call it, its people's name if they rise.)
         genome: saga.body?.genome ?? null,
-        name: saga.body?.name ?? null,
+        name: saga.named ?? null,
       },
     });
     if (!made.acts.length) {
@@ -1749,18 +1946,20 @@ export function installLine(d: LineDeps, Loading: typeof PlaceLoading): LineFlow
     };
     if (!rises?.people || !saga.body) return open();
     const p = rises.people,
-      them = `${p.size} kg, handling things with their ${p.hold}`;
+      them = `${p.size} kg, handling things with their ${p.hold}`,
+      // (Named by the hand: said so, so a name and a kind that differ read as meant; else named as the world names them.)
+      kind = rises.named ? `named for your line: ${p.clade} of ${them}` : them;
     const risen = card(
       rises.risen
         ? `Your line rises: the ${p.name}`
         : "Your line lives on beside your world's people",
       rises.risen
         ? [
-            `Ages after your ${saga.body.name}, your line comes to think, to make and to remember: the ${p.name}, ${p.clade} of ${them}.`,
-            `They are your new world's people, ${p.because.replace(/^of the line your hand lived and made so: /, "")}. Their bands, villages and realms are your line's.`,
+            `Ages after your ${saga.body.name}, your line comes to think, to make and to remember: the ${p.name}, ${kind}.`,
+            `They are your new world's people, ${p.because.replace(/^of the line your hand lived and made so(: |, )/, "")}. Their bands, villages and realms are your line's.`,
           ]
         : [
-            `Your line, ${rises.lineClade ? `of the ${rises.lineClade}` : "as you left it"}, lives on to now; but that kind could not rise to thought on this world.`,
+            `Your line${rises.lineClade ? `, of the ${rises.lineClade},` : ""} lives on to now; but it could not rise to thought here: ${rises.why ?? "that kind could not, on this world"}.`,
             `Its people rise as before: the ${p.name}, ${them}.`,
           ],
       [key("🌍 Open the new world", open)],
@@ -1969,6 +2168,7 @@ export function installLine(d: LineDeps, Loading: typeof PlaceLoading): LineFlow
           cells: drop?.cells.length ?? 0,
           ate: hand?.ate ?? 0,
           steered: hand?.steered ?? 0,
+          hurt: hand?.hurt ?? 0,
           choosing: choosing?.length ?? 0,
           ended,
           done,
@@ -2076,6 +2276,7 @@ export function installLine(d: LineDeps, Loading: typeof PlaceLoading): LineFlow
         return openStory(at);
       },
       storyWorld: () => storyWorld,
+      storyCouncil: () => storyCouncil,
       storyStars: () => storyStars,
     };
   return flow;
@@ -2207,10 +2408,18 @@ const HELP: Readonly<Record<string, readonly [string, readonly string[]]>> = {
   "help:story": [
     "Your line's story",
     [
-      "Seven pages, from your line's first cell to the realm its people's land became part of, and that realm's stars: ‹ and › walk them in order, and Back and Forward as every page does.",
+      "Eight pages, from your line's first cell to the realm its people's land became part of, its years and its stars: ‹ and › walk them in order, and Back and Forward as every page does.",
       "The cell, the body and the band are what you lived. The village, the town and the realm are what came of the land your band was led in, read off your world as it stands now: a step not come yet says what brings it.",
       "🏘️ Go and see leaves the mode for your world's own page of the place: from there you may live as one of its people, or rule them.",
       "Its stars: once its realm can send ships between the stars, choose the star its next one sails for. The realm still decides when it can sail; if the star is taken first, the ship sails where the realm would have sent it.",
+    ],
+  ],
+  "help:year": [
+    "Your realm's year",
+    [
+      "Once a realm holds your line's land, you rule its years. Each year its council offers three things, read off your world as it stands: one to build (your line's town asked to raise what it can), one realm to court (an envoy with a gift, a pact or an embassy), and one to fight, or to make peace with if it is at war.",
+      "Each says what it would cost or why it cannot be: its ruler's standing, its grain, its host. One word a year; then let the year pass, and see what it came to: its people, its lands, its place among the realms it meets.",
+      "These are the god game's own acts of a ruler, given in its ruler's name: your world changes, as teaching your land to sow does. It is kept in your saves first, as it was before your realm's first year.",
     ],
   ],
   "help:young": [
@@ -2241,4 +2450,5 @@ const HELP_LINKS: readonly (readonly [string, string])[] = [
   ["help:makeso", "Make it so"],
   ["help:band", "Leading a band"],
   ["help:story", "Your line's story"],
+  ["help:year", "Your realm's year"],
 ];
