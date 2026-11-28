@@ -668,6 +668,8 @@ for (const view of [
     say(`building: ${(await text(".place-insp")).slice(0, 400)}`);
     say(`the building's first answer came ${(await inspected()).answered} ms after it was asked`);
     await look("20-insp-lot", "a building inspected");
+    // (How warm it keeps those in it: P5.)
+    check((await shown(".place-insp-warmth")) > 0, "a building's warmth told on its page");
     // Its zone (O2): made a meeting place by its key, the page saying so; the Zones overlay below shows it.
     check((await shown(".place-insp-zones .place-chip")) >= 2, "a lot's page has its zone keys");
     // (On a phone the page opens peeked, its zone keys below the fold: raised and scrolled to, as a finger would.)

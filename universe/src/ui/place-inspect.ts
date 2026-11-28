@@ -810,6 +810,7 @@ export class PlaceInspector {
       body.push(row);
     }
     if (x.postWords) body.push(el("p", "place-insp-why", x.postWords));
+    if (x.warmth) body.push(el("p", "place-insp-why place-insp-warmth", `🔥 ${x.warmth}`));
     // (What the town could be asked to raise here, P1: on the lots this one is of; the homes it would clear said.)
     if (x.raiseHere.length && this.orders) {
       const box = el("div", "place-insp-people place-insp-raise");

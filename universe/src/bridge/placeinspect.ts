@@ -183,6 +183,8 @@ export type PlaceInspectLot = {
    * Whether it is the guard's post by your order (O7), whether it may be one (any lot, its walls' site), and what comes of
    * it: those standing to arms there, the homes within a cry of it watched.
    */
+  /** P5. How warm it keeps those in it against the cold out of doors, in words (null: not a building one is in). */
+  readonly warmth: string | null;
   readonly post: boolean;
   readonly postable: boolean;
   readonly postWords: string;

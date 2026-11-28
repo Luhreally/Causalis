@@ -131,8 +131,10 @@ import {
   placeNeedsMore,
   GEAR,
   type Item,
+  dressWarmth,
   fareMost,
   placeDrink,
+  placeRoomLets,
   placeTakes,
 } from "./place.ts";
 import {
@@ -157,6 +159,7 @@ import {
   placeDayRows,
 } from "./placeplan.ts";
 import { landEra, peopleBody } from "./village.ts";
+import { landCloth } from "./chain.ts";
 
 const cap = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
 const amount = (x: number) =>
@@ -335,7 +338,7 @@ export function inspectItem(
       k === GEAR.tool
         ? `For their work as ${tradeWords(occ, false)}: worn by the work done with it`
         : k === GEAR.garment
-          ? "Worn day by day, against the weather"
+          ? `Worn day by day, against the weather: the town's ${stuffsWord(world, place)} keeps off ${Math.round(dressWarmth(world, place) * 100)}% of the cold out of doors`
           : "Their household's cooking, at its hearth: they are its cook",
     where:
       k === GEAR.garment
@@ -348,6 +351,9 @@ export function inspectItem(
     mood: g.term,
   };
 }
+/** The town's cloth, in a word or two (its clothes). */
+const stuffsWord = (world: World, place: Place): string =>
+  landCloth(world, place.cell).name;
 /** A cook's skill at it, said of their meals. */
 const COOK_WORDS = ["poor", "plain", "good", "fine", "a master's"] as const;
 /** Each facet of one's nature at its two ends (host/place.ts FACETS). */
@@ -997,6 +1003,12 @@ export function inspectLot(world: World, place: Place, lot: number): PlaceInspec
     ...lotZone(world, place, lot),
     ...lotPost(world, place, lot),
     raiseHere: raiseHere(world, place, lot),
+    warmth:
+      lot < 0
+        ? null
+        : placeRoomLets(place, lot) > 0
+          ? `No fire is kept in it: its walls let in ${Math.round(placeRoomLets(place, lot) * 100)}% of the cold out of doors`
+          : "Warm in any cold: a hearth, or a fire kept for its work",
     ground: (() => {
       const g = groundReading(world, place.cell);
       return g ? `${g.stats[0]?.value ?? "Its soil"} over ${g.line.replace(/^Ground: /, "")}` : "";

@@ -1341,6 +1341,47 @@ export function airOf(f: Frame, t: number): { warmth: number; lit: boolean } {
   };
 }
 
+/**
+ * P5. What a town's clothes keep off of the cold out of doors (0 … 0.6): its land's cloth (host/chain.ts landCloth: wool,
+ * a beast's hair or down, else a plant's fibre), as fine as its middling hands make a garment (gearMid), worn by all. Est.:
+ * a woollen coat keeps off half the cold a body's skin would feel, a plant's weave a quarter; read once a year a place.
+ */
+const CLOTH_KEEPS: readonly (readonly [RegExp, number])[] = [
+  [/woollen/, 0.5],
+  [/-down/, 0.55],
+  [/-hair/, 0.45],
+];
+const DRESSED = new WeakMap<Place, { year: number; w: number }>();
+export function dressWarmth(world: World, place: Place): number {
+  const year = Math.floor(place.t / YEAR),
+    was = DRESSED.get(place);
+  if (was && was.year === year) return was.w;
+  const s = stuffsOf(world, place),
+    keeps = CLOTH_KEEPS.find(([re]) => re.test(s.cloth))?.[1] ?? 0.25,
+    w = Math.max(0, Math.min(0.6, keeps * Math.max(0.5, Math.min(1.2, gearMid(s, GEAR.garment) / 60))));
+  DRESSED.set(place, { year, w });
+  return w;
+}
+/**
+ * P5. What each building's walls let in of the cold out of doors, where no fire is kept in it (its lot to the share; a lot
+ * not listed lets in none: a home, warmed at its hearth, or a building whose work keeps a fire). Est.: walls without a fire
+ * keep out seven tenths of it. Read again when its buildings change.
+ */
+const ROOM_LETS = 0.3;
+const HEARTHS: ReadonlySet<string> = new Set(["smithy", "kiln", "baths", "factory", "power", "hospital", "vats"]);
+const LETS = new WeakMap<Place, { n: number; lot: number; lets: Map<number, number> }>();
+function roomLets(place: Place): Map<number, number> {
+  const b = place.bldgs,
+    was = LETS.get(place);
+  if (was && was.n === b.lot.length && was.lot === (b.lot[b.lot.length - 1] ?? -1)) return was.lets;
+  const lets = new Map<number, number>();
+  for (let k = 0; k < b.lot.length; k++) if (!HEARTHS.has(kindName(b.kind[k]!))) lets.set(b.lot[k]!, ROOM_LETS);
+  LETS.set(place, { n: b.lot.length, lot: b.lot[b.lot.length - 1] ?? -1, lets });
+  return lets;
+}
+/** What a building's walls let in of the cold out of doors (P5; 0: none, a home or one with a fire in it). */
+export const placeRoomLets = (place: Place, lot: number): number => roomLets(place).get(lot) ?? 0;
+
 /** How far the cold bites one out of doors, 0 … 1: by the air now and their coat (rules/dress.ts warmthNeeded's measure). */
 const coldOf = (f: Frame, warmth: number): number =>
   f.water ? 0 : Math.max(0, Math.min(1, (DRESS.comfort - warmth) / DRESS.span)) * f.coat;
@@ -6733,7 +6774,9 @@ function tickCx(world: World, place: Place, f: Frame) {
     cold = coldOf(f, air.warmth),
     // (Out of doors one grows as cold as the air is, in a couple of hours, and no colder: mild air chills a little and
     // stops there. It ran on to the full in any chill at all, and those left without a roof in mild weather died of it.)
-    coldTo0 = Math.round(cold * FULL),
+    // (Less what the town's clothes keep off: P5, dressWarmth.)
+    dressed = 1 - dressWarmth(world, place),
+    coldTo0 = Math.round(cold * dressed * FULL),
     chill = Math.round((FULL * PLACE_TICK) / (2 * HOUR)),
     warmUp = Math.round((FULL * PLACE_TICK) / HOUR),
     // (Work by a body that sees by light is worth less in the dark.)
@@ -7028,7 +7071,9 @@ function tickCx(world: World, place: Place, f: Frame) {
       matched.mix && matched.mix.length > 1
         ? matched.mix.map((_, k) => frameOf(world, place.cell, k))
         : null,
-    coldTos = fs ? fs.map((x) => Math.round(coldOf(x, air.warmth) * FULL)) : null,
+    coldTos = fs ? fs.map((x) => Math.round(coldOf(x, air.warmth) * dressed * FULL)) : null,
+    // (What a building's walls let in of the cold, where no fire is kept in it: P5, roomLets.)
+    lets = cold > 0 ? roomLets(place) : null,
     darks = fs ? fs.map((x) => (air.lit ? 1 : 1 - 0.7 * x.sight)) : null;
   // (Its columns as each one's turn reads them, taken out of its people once a tick.)
   const cAct = p.act,
@@ -7114,6 +7159,7 @@ function tickCx(world: World, place: Place, f: Frame) {
     visitor,
     zoned,
     post,
+    lets,
     drink: placeDrink(world, place),
     // (The last come for company to each meeting place this tick, as `visitor` is the square's: O2.)
     visitAt: zoned?.meets.length ? new Map<number, number>() : null,
@@ -9106,11 +9152,11 @@ function accrue(
   cNeeds[at0 + N.rest] = asleep
     ? Math.max(0, cNeeds[at0 + N.rest]! - fk.rest * k)
     : Math.min(FULL, cNeeds[at0 + N.rest]! + fk.tire * k);
-  const chilled0 = cNeeds[at0 + N.cold]!;
+  const chilled0 = cNeeds[at0 + N.cold]!,
+    // (Indoors, a home or a building with a fire in it keeps all the cold out; any other walls keep out most of it. P5.)
+    to = inside ? (cx.lets && coldTo ? Math.round(coldTo * (cx.lets.get(cx.cAt[i]!) ?? 0)) : 0) : coldTo;
   cNeeds[at0 + N.cold] =
-    inside || chilled0 > coldTo
-      ? Math.max(inside ? 0 : coldTo, chilled0 - warmUp * k)
-      : Math.min(coldTo, chilled0 + chill * k);
+    chilled0 > to ? Math.max(to, chilled0 - warmUp * k) : Math.min(to, chilled0 + chill * k);
   // (Company is had among others in the square; work neither gives it nor takes it, nor does sleep.)
   if (!moving && cAct[i] === ACT.visit)
     cNeeds[at0 + N.lone] = Math.max(0, cNeeds[at0 + N.lone]! - 12 * fk.lone * k);
