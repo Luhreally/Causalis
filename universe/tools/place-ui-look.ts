@@ -978,6 +978,26 @@ for (const view of [
       "below the town: its ground cut through, its water said",
     );
     await look("20g-below", "below the town");
+    // What now? (G3): from the menu, a page of the inspector's with one to three things, each with somewhere to go.
+    {
+      await press(".place-menu-key", "the menu, for What now?");
+      await page.waitForTimeout(300);
+      await press(".place-menu-now", "💡 What now?, from the menu");
+      await until("what now", async () => (await kind()) === "whatnow", 8000);
+      const tips = await shown(".place-tip");
+      say(`what now: ${(await text(".place-insp-body")).slice(0, 300)}`);
+      check(tips >= 1 && tips <= 3, "one to three things worth doing next");
+      check(
+        (await shown(".place-tip-go")) +
+          (await shown(".place-tip-open")) +
+          (await shown(".place-tip-sheet")) >=
+          tips,
+        "each with somewhere to go",
+      );
+      await look("20j-whatnow", "what now");
+      await press(".place-insp-back", "‹ Back from what now");
+      await page.waitForTimeout(400);
+    }
     // (Its lessons asked for from the menu, on a phone in the sheet's place, and put back by a sheet; ticks kept.)
     if (phone) {
       await press(".place-menu-key", "the menu, for the lessons");
@@ -1204,11 +1224,11 @@ for (const view of [
   await page.waitForTimeout(400);
   check((await shown(".place-insp")) === 0, "Esc lets go of what was inspected");
 
-  // The menu: sound, the ways, the lessons, leaving.
+  // The menu: sound, the ways, what now, the lessons, leaving.
   await press(".place-menu-key", "≡");
   check(
-    (await shown(".place-menu-item")) === 4,
-    "the menu has its four items: sound, the ways, the lessons, leaving",
+    (await shown(".place-menu-item")) === 5,
+    "the menu has its five items: sound, the ways, what now, the lessons, leaving",
   );
   await look("06-menu", "the menu open");
   await press(".place-menu-key", "≡ again, to close it");

@@ -15,6 +15,7 @@ import {
   placeLotRef,
   placePersonRef,
   placeHelpRef,
+  placeWhatNowRef,
   placedId,
   type BarRead,
   type HostClient,
@@ -497,7 +498,7 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
     stopInspect = null;
     if (
       ref &&
-      !/^(plc|plcl|plci|plcg|plcb|plcw|plcy|plca|plcf|plcc|plcm|plcs|plcv|plch|plcd|plcr|folk|person):/.test(
+      !/^(plc|plcl|plci|plcg|plcb|plcw|plcy|plca|plcf|plcc|plcm|plcs|plcv|plch|plcn|plcd|plcr|folk|person):/.test(
         ref,
       )
     ) {
@@ -534,7 +535,7 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
       return;
     }
     const id = placedId(ref);
-    if (/^plc[ligbwyafcmsvhdr]:/.test(ref)) choose(null);
+    if (/^plc[ligbwyafcmsvhndr]:/.test(ref)) choose(null);
     else if (id !== null) choose(id);
     // (A sheet open under it is kept where the inspector is only peeked; a taller one takes the sheet's place.)
     if (inspector.height !== "peek" && hud.tab) hud.open(null);
@@ -995,6 +996,14 @@ export function installPlace(d: PlaceDeps): PlaceFlow {
   // (What a sheet, a tab or a page is, in plain words: a page of the inspector's, so Back comes back. G2.)
   const help = (topic: string): void => void (town && inspect(placeHelpRef(town, topic)));
   hud.onHelp = help;
+  // (What now? G3: a page of the inspector's; its Go to sends the eye, its sheet opens the sheet.)
+  hud.onWhatNow = () => void (town && inspect(placeWhatNowRef(town)));
+  inspector.onGoFor = (g) => {
+    const at =
+      (g.id !== null ? personPoint(g.id) : null) ?? (g.lot !== null ? lotPoint(g.lot) : null);
+    if (at) lookAt(at);
+  };
+  inspector.onSheet = (tab) => hud.open(tab as PlaceTab);
   inspector.onHelp = help;
   hud.onAlert = (n) => alerted(n);
   hud.onLens = (lens) => {

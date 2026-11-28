@@ -222,6 +222,8 @@ export class PlaceHud {
   onFollow: () => boolean = () => false;
   /** What a sheet is, asked (G2): its topic. */
   onHelp: (topic: string) => void = () => {};
+  /** What now? asked (G3). */
+  onWhatNow: () => void = () => {};
   /** Its lessons asked for on a phone, or put back (G1): the inspector goes down while they are out. */
   onGuide: (out: boolean) => void = () => {};
   /** A sheet opened or closed, by a tab or from the page (for what lies beside it). */
@@ -315,7 +317,17 @@ export class PlaceHud {
       this.guide.ask(true);
       this.onGuide(true);
     };
-    this.menu.append(this.soundKey, ways, lessons, leave);
+    // (What now? G3: from the menu, and on the lessons' card.)
+    const now = el("button", "place-menu-item place-menu-now", "💡  What now?");
+    now.onclick = () => {
+      this.menuOpen(false);
+      this.onWhatNow();
+    };
+    const cardNow = el("button", "place-guide-now", "💡 What now?");
+    cardNow.setAttribute("aria-label", "What now? The few things most worth doing next");
+    cardNow.onclick = () => this.onWhatNow();
+    this.guide.extra.append(cardNow);
+    this.menu.append(this.soundKey, ways, now, lessons, leave);
     this.guide.onLaid = () => this.laidGuide();
     this.menu.hidden = true;
     this.watchText.append(this.watchTitle, this.watchWords);

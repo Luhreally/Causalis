@@ -2209,3 +2209,27 @@ body.placing:has(.page-window:not([hidden])) .place-tag {
 .place-help-what {
   font-size: 14px;
 }
+
+/* What now? (G3): each thing worth doing a row, its keys under it. */
+.place-hud .place-tips {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.place-hud .place-tip {
+  border-top: 1px dotted rgba(190, 205, 255, 0.3);
+  padding-top: 4px;
+}
+.place-tip-words {
+  margin: 0;
+  font-weight: 600;
+}
+.place-hud .place-tip-keys {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.place-hud .place-tip-keys button,
+.place-hud .place-guide-now {
+  padding: 0 10px;
+}

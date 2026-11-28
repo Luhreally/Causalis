@@ -255,6 +255,16 @@ export const HELP: Readonly<Record<string, Help>> = {
     numbers: [["%", "How far each building has got."]],
     can: ["Open a building going up."],
   },
+  "page:whatnow": {
+    title: "What now?",
+    what: "The few things most worth doing next in this town, the most pressing first, read off the town as it stands now.",
+    numbers: [],
+    can: [
+      "🎯 Go to: send the eye to where it is.",
+      "Open ▸: open its page.",
+      "A sheet's key: open the sheet where it is done.",
+    ],
+  },
 };
 
 /** The topic for what a sheet, a tab or a page is (G2): its own, else the town's. */

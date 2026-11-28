@@ -17,6 +17,7 @@ import type {
   PlaceInspectMaking,
   PlaceInspectCivic,
   PlaceInspectHelp,
+  PlaceInspectWhatNow,
   PlaceInspectCharacter,
   PlaceInspectDead,
   PlaceInspectFamily,
@@ -113,6 +114,10 @@ export class PlaceInspector {
   onFollow: (on: boolean) => void = () => {};
   /** What a page or tab is, asked (G2): its topic. */
   onHelp: (topic: string) => void = () => {};
+  /** The eye sent to one of the town or a lot (G3's Go to). */
+  onGoFor: (g: { id: number | null; lot: number | null }) => void = () => {};
+  /** One of the town's sheets opened (G3). */
+  onSheet: (tab: string) => void = () => {};
   /** One of a person's tabs opened (G1's lessons). */
   onTabbed: (tab: string) => void = () => {};
   onOrder: (type: string, args: Record<string, unknown>) => void = () => {};
@@ -287,6 +292,7 @@ export class PlaceInspector {
     else if (x.kind === "making") this.making(x);
     else if (x.kind === "civic") this.civic(x);
     else if (x.kind === "help") this.help(x);
+    else if (x.kind === "whatnow") this.whatNow(x);
     else this.lot(x);
   }
 
@@ -848,6 +854,50 @@ export class PlaceInspector {
       this.facts(x.senses.map((s) => [s.name, s.words, null] as const)),
     );
     this.body.replaceChildren(...body);
+  }
+  /** What now? (G3): each thing worth doing, what to do, and its Go to, its page, its sheet. */
+  private whatNow(x: PlaceInspectWhatNow): void {
+    this.picture(x);
+    const title = `${x.icon} ${x.name}`;
+    if (this.title.textContent !== title) this.title.textContent = title;
+    if (this.sub.textContent !== x.sub) this.sub.textContent = x.sub;
+    const list = el("div", "place-tips");
+    for (const t of x.tips) {
+      const row = el("div", "place-tip"),
+        keys = el("div", "place-tip-keys");
+      row.append(
+        el("p", "place-tip-words", `${t.icon} ${t.words}`),
+        el("p", "place-insp-why", t.how),
+      );
+      if (t.go) {
+        const go = t.go,
+          b = el("button", "place-tip-go", "🎯 Go to");
+        b.setAttribute("aria-label", `Go to it: ${t.words}`);
+        b.onclick = () => this.onGoFor(go);
+        keys.append(b);
+      }
+      if (t.ref) {
+        const ref = t.ref,
+          b = el("button", "place-tip-open", "Open ▸");
+        b.setAttribute("aria-label", `Open its page: ${t.words}`);
+        b.onclick = () => this.onInspect(ref);
+        keys.append(b);
+      }
+      if (t.sheet) {
+        const sheet = t.sheet,
+          b = el(
+            "button",
+            "place-tip-sheet",
+            `${sheet.charAt(0).toUpperCase()}${sheet.slice(1)} ▸`,
+          );
+        b.setAttribute("aria-label", `Open the ${sheet} sheet`);
+        b.onclick = () => this.onSheet(sheet);
+        keys.append(b);
+      }
+      row.append(keys);
+      list.append(row);
+    }
+    this.body.replaceChildren(list);
   }
   /** What a sheet, a tab or a page is, in plain words (G2). */
   private help(x: PlaceInspectHelp): void {

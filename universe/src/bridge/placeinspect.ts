@@ -690,7 +690,28 @@ export type PlaceInspectHelp = {
   readonly can: readonly string[];
 };
 
+/** A thing worth doing next (G3): what it is, what to do, and where to go for it: a page, the eye to a place, a sheet. */
+export type PlaceTip = {
+  readonly icon: string;
+  readonly words: string;
+  readonly how: string;
+  readonly ref: string | null;
+  readonly go: { readonly id: number | null; readonly lot: number | null } | null;
+  /** The sheet where it is done (PlaceTab's name), or null. */
+  readonly sheet: string | null;
+};
+/** What now? (G3): the one to three things most worth doing next, read off the town as it stands. */
+export type PlaceInspectWhatNow = {
+  readonly kind: "whatnow";
+  readonly ref: string;
+  readonly name: string;
+  readonly icon: string;
+  readonly sub: string;
+  readonly tips: readonly PlaceTip[];
+};
+
 export type PlaceInspect =
+  | PlaceInspectWhatNow
   | PlaceInspectHelp
   | PlaceInspectCivic
   | PlaceInspectMaking
