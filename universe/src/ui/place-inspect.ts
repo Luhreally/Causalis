@@ -45,6 +45,7 @@ import { fieldsEl } from "./place-fields.ts";
 import { belowEl } from "./place-below.ts";
 import { levelsEl } from "./place-levels.ts";
 import { captioned } from "./place-hud.ts";
+import { glossaryEl, helpFootEl } from "./place-guide.ts";
 import type { VillagePlan } from "../bridge/index.ts";
 
 export type InspectHeight = "peek" | "half" | "full";
@@ -1102,13 +1103,26 @@ export class PlaceInspector {
     }
     this.body.replaceChildren(list);
   }
-  /** What a sheet, a tab or a page is, in plain words (G2). */
+  /**
+   * What a sheet, a tab or a page is, in plain words (G2). The glossary (U6): the game's words, the one it was opened at
+   * brought into view. At the foot of every help page but the glossary, the few words it uses and the glossary a tap
+   * away, opened as a page of the inspector's, so Back comes here again.
+   */
   private help(x: PlaceInspectHelp): void {
     this.picture(x);
     const title = `${x.icon} ${x.name}`;
     if (this.title.textContent !== title) this.title.textContent = title;
     if (this.sub.textContent !== x.sub) this.sub.textContent = x.sub;
     const body: HTMLElement[] = [el("p", "place-insp-why place-help-what", x.what)];
+    if (x.words) {
+      const words = glossaryEl(x.words, x.lit ?? null);
+      body.push(words);
+      if (x.can.length) body.push(el("p", "place-insp-why", x.can.join(" ")));
+      this.body.replaceChildren(...body);
+      const lit = words.querySelector<HTMLElement>(".place-glossary-word.lit");
+      if (lit) requestAnimationFrame(() => lit.scrollIntoView({ block: "start" }));
+      return;
+    }
     if (x.numbers.length) {
       body.push(el("h3", "place-insp-sub", "What the numbers mean"));
       body.push(this.facts(x.numbers.map(([a, b]) => [a, b, null] as const)));
@@ -1119,6 +1133,7 @@ export class PlaceInspector {
       for (const c of x.can) list.append(el("li", "", c));
       body.push(list);
     }
+    body.push(helpFootEl(x.glossed ?? [], (topic) => this.onHelp(topic)));
     this.body.replaceChildren(...body);
   }
   /** A town's beasts and power (R9): its flock and the wild of its land off its plan; its keepers; what drives its works. */

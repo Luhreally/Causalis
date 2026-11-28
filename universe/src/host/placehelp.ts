@@ -1,6 +1,8 @@
 // What each of the town mode's sheets, tabs and pages is, in plain words (G2): what it is, what its numbers mean, and
 // what you can do there. A "?" on every sheet and on the inspector opens the one for what is shown, as a page of the
-// inspector's own, so Back comes to where you were. The same for every town: words only.
+// inspector's own, so Back comes to where you were. The same for every town: words only. And the game's words (U6), a
+// glossary of what a player meets, each in one plain line: from ≡ and from the foot of every help page, which names a
+// few of the words it uses.
 import {
   placeBeastsRef,
   placeBelowRef,
@@ -37,7 +39,17 @@ export const HELP: Readonly<Record<string, Help>> = {
       "Tap anyone or any building to open its page.",
       "Use the tabs at the foot for the town as a whole.",
       "🏘️ Town at the foot lists the town's own pages: below ground, its legends, its gate and more.",
-      "≡ holds the lessons, how the town is run, and leaving it.",
+      "≡ holds the lessons, how the town is run, the game's words, and leaving it.",
+      "Hold a finger on any key a moment to read what it does; on a desk, rest the pointer on it.",
+    ],
+  },
+  glossary: {
+    title: "The game's words",
+    what: "The words the town's pages use, each in one plain line, A to Z.",
+    numbers: [],
+    can: [
+      "‹ Back goes to the page you came from.",
+      "Hold a finger on any key a moment to read what it does.",
     ],
   },
   "page:townpages": {
@@ -359,6 +371,212 @@ export const HELP: Readonly<Record<string, Help>> = {
 };
 
 /**
+ * The game's words (U6), each in one plain line: what a player meets on the town's pages and keys, said once here so no
+ * page need say it again. Each with its key (the glossary opened at it), and where a help page uses the word, what finds
+ * it there (`finds`: only the words a player would stop at; mood, say, is on every page and is linked from none).
+ */
+export const GLOSSARY: readonly {
+  readonly key: string;
+  readonly word: string;
+  readonly line: string;
+  readonly finds?: RegExp;
+}[] = [
+  {
+    key: "abed",
+    word: "Abed",
+    line: "Lying in bed hurt or sick: they do no work until they are well.",
+    finds: /\babed\b/i,
+  },
+  {
+    key: "alert",
+    word: "Alert",
+    line: "A sign down the right: something wants you. Red is danger, amber is to see to, grey is worth knowing.",
+  },
+  {
+    key: "answers",
+    word: "Answers",
+    line: "Standing orders the town is held to against a danger: a fire watch, the sick kept apart, grain put by, a call to arms.",
+    finds: /an answer|firebreaks|keeping the sick apart/i,
+  },
+  {
+    key: "bills",
+    word: "Bills",
+    line: "How much of a good the town keeps made: its makers stop at that, and turn to the next good billed.",
+    finds: /\bbills?\b/i,
+  },
+  {
+    key: "bleeding",
+    word: "Bleeding",
+    line: "A wound not yet dressed loses blood every ten minutes, until a healer or one of their own dresses it.",
+  },
+  {
+    key: "bound",
+    word: "Bound",
+    line: "Held by the town: a captive, or one its justice holds. Your word can free one.",
+    finds: /\bbound\b|captives/i,
+  },
+  {
+    key: "broken",
+    word: "Broken down",
+    line: "One whose mood fell past bearing: for a while they lash out, eat all in sight, pray or wander.",
+  },
+  {
+    key: "drafted",
+    word: "Drafted",
+    line: "Put under arms by name: they stand where you told them, whatever the rest do, until stood down.",
+    finds: /\bdraft/i,
+  },
+  {
+    key: "festering",
+    word: "Festering",
+    line: "A wound gone bad: it worsens without a healer's remedies, and can kill.",
+  },
+  {
+    key: "follow",
+    word: "Follow (🎯)",
+    line: "Keeps the eye with one person as they go, and has their day worked out in full detail.",
+  },
+  {
+    key: "full",
+    word: "Worked out in full detail",
+    line: "A day the town works out ten minutes at a time, for those you look at, follow or pin; the rest hour by hour or every three hours. Nothing they do is lost.",
+    finds: /in full/i,
+  },
+  {
+    key: "gate",
+    word: "The gate",
+    line: "Where traders, envoys, newcomers and raiders come to the town. It can be shut to newcomers.",
+  },
+  {
+    key: "granary",
+    word: "Granary",
+    line: "The town's store of grain: food held back there is kept for leaner days.",
+    finds: /granary/i,
+  },
+  {
+    key: "head",
+    word: "The head",
+    line: "One of the town's own people, who runs it when you choose 🏛: they give the orders a player would, each in the Log with why.",
+    finds: /its head|the head/i,
+  },
+  {
+    key: "household",
+    word: "Household",
+    line: "Those who live under one roof and eat from one pantry.",
+  },
+  {
+    key: "hours",
+    word: "Hours at a skill",
+    line: "Time spent at a work: a hand at 200 hours, able at 800, skilled at 2,000, a master at 8,000.",
+  },
+  {
+    key: "leanings",
+    word: "Leanings",
+    line: "How a person leans, against most of their people: 100 is as most are.",
+  },
+  {
+    key: "lot",
+    word: "Lot",
+    line: "A plot of the town's ground with a number: a home, a workshop, a field's edge, or bare.",
+    finds: /\blots?\b/i,
+  },
+  {
+    key: "months",
+    word: "Months' food",
+    line: "What one person eats in a month: how the town's food is counted.",
+    finds: /months' food/i,
+  },
+  {
+    key: "mood",
+    word: "Mood",
+    line: "How someone feels, from −100 to +100: what cheers them and what weighs on them, added up. Their Mood tab lists each reason, its size and how long it lasts.",
+  },
+  {
+    key: "needs",
+    word: "Needs",
+    line: "Hunger, tiredness, cold, want of company and comfort: 0% wants nothing, 100% can bear no more. Past a bar's white tick, the need comes before their work.",
+  },
+  {
+    key: "unheeding",
+    word: "Not heeding orders",
+    line: "Below the red tick on the mood bar a person no longer does as they are told, till their mood comes up.",
+    finds: /heeding orders|heed orders|follow orders|doing as they are told/i,
+  },
+  {
+    key: "overlay",
+    word: "Overlay (🗺)",
+    line: "A colour laid on the town's lots for one thing (needs, mood, room, work, age, danger), to see where it is worst.",
+  },
+  {
+    key: "pace",
+    word: "Pace",
+    line: "How fast the town's clock runs: ⏸ stops it; 1 min/s is a minute of its day each second.",
+  },
+  {
+    key: "pin",
+    word: "Pin (📌)",
+    line: "Keeps someone on the people bar, their day worked out in full, until you let them go.",
+    finds: /\bpin\b|pinned/i,
+  },
+  {
+    key: "priorities",
+    word: "Priorities",
+    line: "What each person turns to first when they are free to choose: 1 first, 3 last, – never. Set on the Work sheet's grid.",
+    finds: /priorit/i,
+  },
+  {
+    key: "regard",
+    word: "Regard",
+    line: "How one feels about another, from hatred to love.",
+  },
+  {
+    key: "shares",
+    word: "Shares",
+    line: "The part of the town's grown people you want at each trade: the fields, the herds, the crafts, hauling.",
+    finds: /\bshares\b/i,
+  },
+  {
+    key: "sheet",
+    word: "Sheet",
+    line: "A list at the foot of the screen: People, Stocks, Work, Build, Dangers, Log.",
+  },
+  {
+    key: "site",
+    word: "Site",
+    line: "A lot where a building is going up: how far it has got is on its page.",
+  },
+  {
+    key: "take",
+    word: "Taking over",
+    line: "An order of yours on a matter the head had set: from then on the head leaves that matter to you, and says so in the Log.",
+  },
+  {
+    key: "townpages",
+    word: "The town's own pages",
+    line: "Pages of the town as a whole: below ground, its legends, its gate, the bound, faith, what it lives on, its works and orders, its beasts.",
+  },
+  {
+    key: "arms",
+    word: "Under arms",
+    line: "Called to arms against a siege or a raid: its grown leave their work to stand with the guard.",
+    finds: /under arms|mustering|to arms/i,
+  },
+  {
+    key: "watch",
+    word: "Watching",
+    line: "A way to play with no orders: the eye is led to what happens, and the line at the foot says who it is with and why.",
+  },
+  {
+    key: "zone",
+    word: "Zone",
+    line: "A building made a meeting place for those near, or kept clear so that no one goes there but to a fire.",
+    finds: /meeting place|kept? clear/i,
+  },
+];
+/** How many of the game's words a help page links at most (U6: kept light). */
+const GLOSSED_MOST = 3;
+
+/**
  * The town's own pages listed (U3): before, only a tap on its square's open ground led to them. Words and refs alone, the
  * same for every town: nothing of the world is read, and no place is made by asking.
  */
@@ -433,10 +651,33 @@ export function helpTopic(of: string): string {
   return HELP[of] ? of : "town";
 }
 
-/** A help page (G2), for its topic. */
+/**
+ * A help page (G2), for its topic; the glossary's (U6) opened at one of its words where the topic says which
+ * ("glossary#bills"). Each page but the glossary names a few of the game's words it uses, each a tap from its line.
+ */
 export function placeHelp(town: string, topic: string): PlaceInspectHelp {
-  const key = helpTopic(topic),
+  const [asked = "", at] = topic.split("#"),
+    key = helpTopic(asked),
     h = HELP[key]!;
+  if (key === "glossary") {
+    const lit = at && GLOSSARY.some((g) => g.key === at) ? at : null;
+    return {
+      kind: "help",
+      ref: placeHelpRef(town, lit ? `${key}#${lit}` : key),
+      topic: key,
+      name: h.title,
+      icon: "📖",
+      sub: `${GLOSSARY.length} words, each in a line`,
+      what: h.what,
+      numbers: [],
+      can: h.can,
+      words: [...GLOSSARY]
+        .sort((a, b) => a.word.localeCompare(b.word))
+        .map(({ key, word, line }) => ({ key, word, line })),
+      lit,
+    };
+  }
+  const said = [h.what, ...h.numbers.flat(), ...h.can].join(" ");
   return {
     kind: "help",
     ref: placeHelpRef(town, key),
@@ -447,5 +688,8 @@ export function placeHelp(town: string, topic: string): PlaceInspectHelp {
     what: h.what,
     numbers: h.numbers,
     can: h.can,
+    glossed: GLOSSARY.filter((g) => g.finds?.test(said))
+      .slice(0, GLOSSED_MOST)
+      .map(({ key, word }) => ({ key, word })),
   };
 }

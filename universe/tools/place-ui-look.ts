@@ -3,7 +3,10 @@
 // ways to run it asked on entering; by hand: the bar (its date, season, year, clock, warmth and weather), the paces'
 // pill (a day a second measured), the alert column after a fire is sent on it, an alert tapped (the eye goes there and
 // its inspector opens), the menu, every sheet, the inspector at each of its heights and docked, one of its people
-// chosen (a ring and their name over them), a building's inspector, the night; run by its head; watched; left. Every
+// chosen (a ring and their name over them), a building's inspector, the night; run by its head; watched; left. The guide
+// (U6): each way's welcome once and again from ≡, a lesson of each way's track ticked by its act, What now? by the way
+// played, a key's words held for on a phone (or rested on at a desk) clear of it, the game's words from ≡ and from a
+// help page's foot, and the clock stopped on a grave alert where that is chosen. Every
 // state is read for overlap by the overlap gate's own reading (tools/hud-read.ts) and its stills kept (--shots), to be
 // looked at. (npm run build first: it reads dist/.)
 //   node tools/place-ui-look.ts --save file.save [--shots dir] [--people 400 | --town ref] [--browser webkit] [--only phone]
@@ -216,6 +219,25 @@ for (const view of [
       await page.waitForTimeout(350);
       return true;
     },
+    /** A way's welcome (U6): heading the lessons' card the first time the way is taken up, saying what to try first; looked
+     * at; put away by Got it. */
+    welcomed = async (way: string, what: string): Promise<void> => {
+      await page.waitForTimeout(500);
+      const sel = `.place-guide-welcome[data-way="${way}"]`;
+      check(
+        (await shown(sel)) === 1,
+        `${what}: its welcome heads the lessons' card, the first time`,
+      );
+      check(/Try first/.test(await text(sel)), `${what}: its welcome says what to try first`);
+      await look(`02w-welcome-${way}`, `${what}: its welcome`);
+      await press(".place-guide-welcome-ok", `Got it, for the welcome of ${what}`);
+      check((await shown(".place-guide-welcome")) === 0, `${what}: its welcome put away`);
+    },
+    /** The lessons done, of the track of the way played now (U6: the card draws that track's alone). */
+    lessonsDone = () =>
+      k<string[]>(
+        '[...document.querySelectorAll(".place-guide-lesson.done")].map((e) => e.dataset.lesson)',
+      ),
     /** The town's clock run at an hour a second to an hour of its day, then stopped. */
     toHour = async (from: number, to: number, what: string) => {
       await k(`globalThis.causalis.client.setSpeed(3600)`);
@@ -325,6 +347,7 @@ for (const view of [
   await look("02-choose-on-entry", "the ways asked on entering");
   await press('.place-mode-choice[data-mode="hand"]', "✋ Run it");
   check((await shown(".place-welcome")) === 0, "the welcome gone once a way is chosen");
+  await welcomed("hand", "run by hand");
   await page.waitForTimeout(1200);
   const date = await text(".place-date");
   check(
@@ -334,6 +357,74 @@ for (const view of [
   const air = await text(".place-air");
   check(/-?\d+°/.test(air), `the bar's warmth and weather: "${air}"`);
   await look("03-hand", "the town run by hand");
+  // (Every key's words reached with no title shown, U6: a finger held still on a key tells them in a tip, firing nothing;
+  // on a desk the pointer rested on it. The tip clear of the key, and on the screen.)
+  {
+    type Held = {
+      tip: { l: number; t: number; r: number; b: number } | null;
+      key: { l: number; t: number; r: number; b: number };
+      words: string;
+      title: string;
+      lens: boolean;
+      W: number;
+      H: number;
+    };
+    const readTip = `(() => { const b = document.querySelector(".place-lens-key"), r = b.getBoundingClientRect(), t = document.querySelector(".place-holdtip"), q = t && !t.hidden ? t.getBoundingClientRect() : null; return { tip: q ? { l: q.left, t: q.top, r: q.right, b: q.bottom } : null, key: { l: r.left, t: r.top, r: r.right, b: r.bottom }, words: t && !t.hidden ? t.textContent ?? "" : "", title: b.getAttribute("title") || b.dataset.tip || "", lens: document.querySelector(".place-hud").classList.contains("lens-on"), W: innerWidth, H: innerHeight }; })()`;
+    let held: Held;
+    if (phone) {
+      held = await k<Held>(
+        `(async () => { const b = document.querySelector(".place-lens-key"), r = b.getBoundingClientRect(), at = { bubbles: true, pointerType: "touch", pointerId: 7, clientX: r.x + r.width / 2, clientY: r.y + r.height / 2 }; b.dispatchEvent(new PointerEvent("pointerdown", at)); await new Promise((d) => setTimeout(d, 700)); b.dispatchEvent(new PointerEvent("pointerup", at)); b.click(); await new Promise((d) => setTimeout(d, 200)); return ${readTip}; })()`,
+      );
+    } else {
+      const at = await box(".place-lens-key");
+      if (at) {
+        await page.mouse.move(at.x - 40, at.y + 60);
+        await page.mouse.move(at.x, at.y, { steps: 4 });
+      }
+      await page.waitForTimeout(900);
+      held = await k<Held>(readTip);
+    }
+    say(`a key's words held for: ${JSON.stringify(held)}`);
+    const t = held.tip,
+      key = held.key;
+    check(
+      !!t && held.words.length > 10,
+      `a key's words shown in a tip (${held.words.slice(0, 60)})`,
+    );
+    if (phone) check(!held.lens, "a finger held on a key fires nothing: no overlay turned on");
+    if (t) {
+      check(
+        t.b <= key.t + 0.5 || t.t >= key.b - 0.5 || t.r <= key.l + 0.5 || t.l >= key.r - 0.5,
+        `the tip lies clear of the key it tells of (${JSON.stringify({ t, key })})`,
+      );
+      check(
+        t.l >= 0 && t.t >= 0 && t.r <= held.W + 0.5 && t.b <= held.H + 0.5,
+        "the tip lies on the screen",
+      );
+    }
+    await shot("03t-held-tip");
+    // (Put away by the next press anywhere, or the pointer gone from the key: its title given back.)
+    if (phone)
+      await k(
+        `document.body.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, pointerType: "touch" }))`,
+      );
+    else {
+      const vp = page.viewportSize()!;
+      await page.mouse.move(vp.width / 2, vp.height / 2, { steps: 4 });
+    }
+    await page.waitForTimeout(300);
+    const after = await k<Held>(readTip);
+    check(!after.tip, "the tip put away");
+    check(
+      (
+        (await k<string | null>(
+          `document.querySelector(".place-lens-key").getAttribute("title")`,
+        )) ?? ""
+      ).length > 10,
+      "the key's title as it was",
+    );
+    // (A tap still fires it: the overlays' checks below press it.)
+  }
   say(`graphics memory while it is run: ${mb(await vram())}`);
 
   // (The paces in plain units a second, as the god bar's "1 month/s": never "1m" read as a month. U2.)
@@ -357,6 +448,12 @@ for (const view of [
   check(t1 - t0 > 86400, "its clock goes on by days at a day a second");
   await press('.place-pace[data-pace="600"]', "the ten-minutes-a-second pace");
 
+  // (Pause on a grave alert, U6: off unless chosen; chosen in the menu before the fire below, which then stops the clock.)
+  await press(".place-menu-key", "≡, for the pause on danger");
+  check(/: off$/.test(await text(".place-menu-pause")), "the pause on danger is off unless chosen");
+  await press(".place-menu-pause", "⏸ Pause on danger");
+  check(/: on$/.test(await text(".place-menu-pause")), "the pause on danger chosen, and says so");
+  await press(".place-menu-key", "≡ again, to close it");
   // Alerts: a fire sent on the town, told in the column; tapped, the eye goes there.
   await k(
     `globalThis.causalis.client.command("act.fire", { village: ${JSON.stringify(town.ref)} })`,
@@ -367,6 +464,22 @@ for (const view of [
     40000,
   );
   await page.waitForTimeout(1200);
+  {
+    const pace = await k<string>(`document.querySelector(".place-pace.on")?.dataset.pace ?? ""`),
+      said = await k<string>(
+        `[...document.querySelectorAll(${JSON.stringify(phone ? ".place-notice:not([hidden]) .place-notice-words" : ".place-alert-words")})].map((e) => e.textContent ?? "").find((w) => /^Paused: /.test(w)) ?? ""`,
+      );
+    check(
+      pace === "0",
+      `a grave alert stopped the town's clock, the pause on danger chosen (${pace})`,
+    );
+    check(said !== "", `the alert says the clock was stopped for it: "${said.slice(0, 70)}"`);
+    await look("04p-paused", "the clock stopped on a grave alert, and said");
+    await press(".place-menu-key", "≡, to let the pause on danger go");
+    await press(".place-menu-pause", "⏸ Pause on danger, off again");
+    check(/: off$/.test(await text(".place-menu-pause")), "the pause on danger off again");
+    await press(".place-menu-key", "≡ again, to close it");
+  }
   await press('.place-pace[data-pace="0"]', "the pause");
   say(
     `alerts: ${((await state()).told?.notices ?? []).map((n) => `[${n.level}${n.icon} ${n.n}] ${n.words}`).join(" | ")}`,
@@ -1319,6 +1432,53 @@ for (const view of [
       await press(".place-insp-back", "‹ Back from what now");
       await page.waitForTimeout(400);
     }
+    // The game's words (U6): from ≡, a page of the inspector's, Back to where it was opened; and from a help page's foot,
+    // Back to the help.
+    {
+      const words = () =>
+        k<number>(
+          '[...document.querySelectorAll(".place-insp .place-glossary-word")].filter((e) => e.getBoundingClientRect().height > 0).length',
+        );
+      const was = await kind();
+      await press(".place-menu-key", "the menu, for the game's words");
+      await page.waitForTimeout(300);
+      await press(".place-menu-words", "📖 The game's words, from the menu");
+      await until("the game's words", async () => (await words()) > 0, 8000);
+      say(`the game's words: ${(await text(".place-insp-body")).slice(0, 200)}`);
+      check(
+        (await kind()) === "help" && (await words()) > 0,
+        "the game's words from ≡, each in a line",
+      );
+      await look("20w-words", "the game's words");
+      await press(".place-insp-back", "‹ Back from the game's words");
+      await until("back from the game's words", async () => (await kind()) === was, 8000);
+      check(
+        (await kind()) === was,
+        `Back from the game's words comes to where they were opened (${was})`,
+      );
+      await press(".place-insp-helpkey", "? on that page");
+      await until("its help", async () => (await kind()) === "help", 8000);
+      check(
+        (await shown(".place-help-glossary")) === 1,
+        "the game's words at the help page's foot",
+      );
+      await press(".place-help-glossary", "📖 The game's words, from the help page's foot");
+      await until("the game's words from a help page", async () => (await words()) > 0, 8000);
+      check((await words()) > 0, "the game's words from a help page's foot");
+      await look("20x-words-from-help", "the game's words, from a help page");
+      await press(".place-insp-back", "‹ Back from the game's words to the help");
+      await until(
+        "the help again",
+        async () => (await kind()) === "help" && (await words()) === 0,
+        8000,
+      );
+      check(
+        (await kind()) === "help" && (await words()) === 0,
+        "Back from the game's words comes to the help",
+      );
+      await press(".place-insp-back", "‹ Back from the help");
+      await until("back from the help", async () => (await kind()) === was, 8000);
+    }
     // (Its lessons asked for from the menu, on a phone in the sheet's place, and put back by a sheet; ticks kept.)
     if (phone) {
       await press(".place-menu-key", "the menu, for the lessons");
@@ -1645,8 +1805,8 @@ for (const view of [
   // The menu: the town's pages, sound, the ways, what now, the lessons, leaving.
   await press(".place-menu-key", "≡");
   check(
-    (await shown(".place-menu-item")) === 6,
-    "the menu has its six items: the town's pages, sound, the ways, what now, the lessons, leaving",
+    (await shown(".place-menu-item")) === 9,
+    "the menu has its nine items: the town's pages, sound, the pause on danger, the ways, what now, the lessons, the game's words, the guide again, leaving",
   );
   await look("06-menu", "the menu open");
   await press(".place-menu-key", "≡ again, to close it");
@@ -2050,6 +2210,10 @@ for (const view of [
       `each drafted by their own order: ${took} said, ${byName} drafted by name`,
     );
     await look("29-people-drafted", "many drafted at once, and said");
+    check(
+      (await lessonsDone()).includes("draft"),
+      "the lesson of the draft ticked off by drafting",
+    );
     await press('.place-pick-order[data-order="undraft"]', "Stand down, for all picked");
     await settle("what standing down came to", async () =>
       /^Stood \d+ of \d+ down/.test(await text(".place-pick-said")),
@@ -2132,11 +2296,69 @@ for (const view of [
   check((await shown(".place-welcome")) === 0, "no welcome again: it is shown once");
   await press('.place-mode-choice[data-mode="steward"]', "🏛 Its head runs it");
   await page.waitForTimeout(2500);
+  await welcomed("steward", "run by its head");
   await look("10-steward", "the town run by its head");
+  // (Its track's lesson of the Log, ticked by opening it; What now? as its head is about to do, and what to take over: U6.)
+  {
+    await press('.place-tab[data-tab="log"]', "the Log, run by its head");
+    await page.waitForTimeout(600);
+    check(
+      (await lessonsDone()).includes("headlog"),
+      "the lesson of what the head did ticked off by the Log",
+    );
+    await press(".place-sheet-shut", "the sheet's close");
+    await press(".place-menu-key", "the menu, for What now?, run by its head");
+    await press(".place-menu-now", "💡 What now?, run by its head");
+    await until(
+      "what now, run by its head",
+      async () =>
+        (await k<string>('document.querySelector(".place-insp")?.dataset.kind ?? ""')) ===
+        "whatnow",
+      8000,
+    );
+    await page.waitForTimeout(600);
+    const said = await text(".place-insp");
+    say(`what now, run by its head: ${said.slice(0, 300)}`);
+    check(/head/i.test(said), "What now?, run by its head, tells what its head will do");
+    await look("10w-steward-whatnow", "what now, run by its head");
+    await k("globalThis.causalis.place.inspect(null)");
+    await page.waitForTimeout(300);
+  }
   await press(".place-mode", "how it is run");
   await press('.place-mode-choice[data-mode="watch"]', "👁 Watch it");
   await page.waitForTimeout(3000);
+  await welcomed("watch", "watched");
   await look("11-watch", "the town watched");
+  // (What now?, watched: only what is worth seeing, each with a Go to or a page, and no sheet where orders are given: U6.)
+  {
+    await press(".place-menu-key", "the menu, for What now?, watched");
+    await press(".place-menu-now", "💡 What now?, watched");
+    await until(
+      "what now, watched",
+      async () =>
+        (await k<string>('document.querySelector(".place-insp")?.dataset.kind ?? ""')) ===
+        "whatnow",
+      8000,
+    );
+    await page.waitForTimeout(600);
+    const tips = await shown(".place-tip");
+    say(`what now, watched: ${(await text(".place-insp")).slice(0, 300)}`);
+    check(
+      tips >= 1 && (await shown(".place-tip-sheet")) === 0,
+      "What now?, watched, gives no orders",
+    );
+    check(
+      (await shown(".place-tip-go")) + (await shown(".place-tip-open")) >= tips,
+      "What now?, watched, each a thing to go and look at",
+    );
+    check(
+      /no orders/.test(await text(".place-insp")),
+      "What now?, watched, says it gives no orders",
+    );
+    await look("11w-watch-whatnow", "what now, watched");
+    await k("globalThis.causalis.place.inspect(null)");
+    await page.waitForTimeout(300);
+  }
   // (Watched: one of its people tapped, the eye goes with them; Back lets it go and closes.)
   {
     const one = await k<{ x: number; y: number } | null>(
@@ -2155,6 +2377,10 @@ for (const view of [
         (await k<{ following: boolean }>("globalThis.causalis.place.state()")).following,
         "watched: the eye goes with the one tapped",
       );
+      check(
+        (await lessonsDone()).includes("watchwith"),
+        "the lesson of going with someone ticked off by tapping them, watched",
+      );
       await look("11b-watch-with", "the town watched, the eye with one of its people");
       await press(".place-insp-back", "‹ Back, watched");
       await page.waitForTimeout(800);
@@ -2168,6 +2394,16 @@ for (const view of [
   await press(".place-mode", "how it is run");
   await press('.place-mode-choice[data-mode="hand"]', "✋ Run it");
   await page.waitForTimeout(800);
+  check((await shown(".place-guide-welcome")) === 0, "by hand again: its welcome is shown once");
+  await press(".place-menu-key", "≡, for the guide again");
+  await press(".place-menu-again", "🧭 Show the guide again");
+  await page.waitForTimeout(400);
+  check(
+    (await shown('.place-guide-welcome[data-way="hand"]')) === 1,
+    "Show the guide again brings the welcome back",
+  );
+  await look("11g-guide-again", "the guide shown again");
+  await press(".place-guide-welcome-ok", "Got it, the guide shown again");
 
   // Left: the god game's chrome back.
   await press(".place-leave", "◂ Leave");
