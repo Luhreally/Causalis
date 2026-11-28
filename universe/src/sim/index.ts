@@ -1027,10 +1027,13 @@ export {
   VOYAGE_GAP,
   clusterOf,
   installVoyages,
+  voyageReach,
   voyageTarget,
   voyageYear,
   worldsOf,
+  type ReachStar,
 } from "./space/voyages.ts";
+export { askedStar } from "./space/asks.ts";
 export {
   CONTACT_EVENTS,
   ContactStore,

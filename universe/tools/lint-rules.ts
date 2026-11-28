@@ -64,6 +64,9 @@ export const LAZY_ONLY: ReadonlyMap<string, string> = new Map([
   ["src/render/line-juice.ts", "Live a Line"],
   ["src/render/line-nest.ts", "Live a Line"],
   ["src/render/line-sea.ts", "Live a Line"],
+  ["src/render/line-band.ts", "Live a Line"],
+  ["src/view/band-led.ts", "Live a Line"],
+  ["src/host/line-story.ts", "Live a Line"],
   ["src/view/line.ts", "Live a Line"],
   ["src/view/drop-held.ts", "Live a Line"],
   // (The town's loading screen, shown by the lazy loaders before their chunks come: kept out of the ui index so it stays

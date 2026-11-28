@@ -53,6 +53,9 @@ const ASKED = [
   "line.young",
   "line.bred",
   "line.makeSo",
+  "line.band",
+  "line.story",
+  "line.stars",
   "saga.list",
   "saga.keep",
 ];

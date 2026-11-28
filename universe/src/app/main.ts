@@ -10919,7 +10919,15 @@ async function runPlanetPage(): Promise<void> {
   villagePanel.onPlace = () => void placeFlow.toggle();
   stage.onUpdate(() => placeFlow.frame());
   // Live a Line (its chunk fetched when first entered): from the world's first cells, or from a line of its tree of life.
-  const lineFlow = lazyLine({ hud, client, stage, rig, time, sound });
+  const lineFlow = lazyLine({
+    hud,
+    client,
+    stage,
+    rig,
+    time,
+    sound,
+    open: (ref) => void pageWindow.open(ref),
+  });
   exposed.line = lineFlow;
   planetPanel.onLine = () => void lineFlow.open();
   {

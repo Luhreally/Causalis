@@ -50,7 +50,9 @@ import {
   type CreatureBody,
   type LifeWorld,
 } from "../rules/index.ts";
-import { homePlanet } from "../sim/index.ts";
+import { homePlanet, populationContext, provinceCapacity } from "../sim/index.ts";
+import { landCamps } from "./land.ts";
+import { starsOf, storyOf } from "./line-story.ts";
 import { installSaga, type SagaStore } from "./saga.ts";
 
 /** A body of the line: what it is called, its way of life, its genome and the body it grows, and why it is as it is. */
@@ -549,6 +551,38 @@ export function makeSo(
   return { seed: acts.reduce(seedWithAct, text), acts };
 }
 
+/**
+ * The band a hand leads (Live a Line's tribe, S6): a camp of the most peopled land that has camps (its first, the
+ * greatest), whether a wild grain grows in or beside that land (or its ground would bear a garden), and whether it sows
+ * already: the world's own rule for the next way of life a land may be taught (sim/population/world.ts, act.inspire).
+ * Null: no people camp anywhere now.
+ */
+export function bandOf(
+  world: World,
+): { cell: number; id: number; grain: boolean; sows: boolean } | null {
+  const ctx = populationContext(world),
+    g = homePlanet(world).generated,
+    lands = ctx.provinces
+      .all()
+      .filter((p) => p.total() > 0)
+      .sort((a, b) => b.total() - a.total() || a.cell - b.cell);
+  for (const p of lands.slice(0, 12)) {
+    if (!landCamps(world, p.cell).length) continue;
+    const cell = p.cell,
+      seed = g.life.seedGrass;
+    let near = seed[cell]! >= 0;
+    for (let k = g.grid.offsets[cell]!; k < g.grid.offsets[cell + 1]! && !near; k++)
+      near = seed[g.grid.neighbours[k]!]! >= 0;
+    return {
+      cell,
+      id: 0,
+      grain: near || provinceCapacity(ctx, cell).farm > 0,
+      sows: p.knowsCultivation,
+    };
+  }
+  return null;
+}
+
 type Asked = {
   cell: string | null;
   bodies: { my: number; way: Way }[];
@@ -591,6 +625,12 @@ export function ask(type: string, world: World, args: unknown): unknown {
         .map((s) => ({ id: s.id, data: s.data }));
     case "saga.keep":
       return keepSaga(store(), a.id, a.data);
+    case "line.band":
+      return bandOf(world);
+    case "line.story":
+      return storyOf(world, a.cell as unknown as number);
+    case "line.stars":
+      return starsOf(world, a.cell as unknown as number);
     case "line.makeSo":
       return makeSo(world.seed.text, a);
   }

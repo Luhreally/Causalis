@@ -57,6 +57,7 @@ import { nationsOf } from "./nation-store.ts";
 import { clusterOf, StarSiteStore, starSitesOf, type SiteLane, type StarSite } from "./stars.ts";
 import { farTaken, filledYear, lastFarSailed, sailFar } from "./filled.ts";
 import { LANE_EVENTS, LANE_ROW, laneDraw, laneLawOf, laneRoute, lanesOf } from "./lanes.ts";
+import { askedStar, spendAsk } from "./asks.ts";
 
 export { clusterOf };
 
@@ -206,6 +207,18 @@ export function voyageTarget(
   for (const s of farTaken(ctx.world)) taken.add(s);
   const held = heldStars(ctx.world, p.ref),
     livable = livableAt(ctx);
+  // (Asked by a hand for a star, Live a Line's space, asks.ts: that star, if within its longest crossing and holding a world
+  // its people could live on that no one has taken, the least to keep of them. Else the voyage as it would have been.)
+  const asked = askedStar(ctx.world, p.ref);
+  if (asked && !taken.has(asked)) {
+    const star = clusterOf(ctx.world).find((s) => s.ref === asked),
+      years = star ? crossingYears(star.distance, drive) : Infinity;
+    if (star && years <= longest) {
+      let pick: { planet: Target["planet"]; upkeep: number } | null = null;
+      for (const w of livable.get(star.ref) ?? []) if (!pick || w.upkeep < pick.upkeep) pick = w;
+      if (pick) return { drive, target: { star, planet: pick.planet, years, upkeep: pick.upkeep } };
+    }
+  }
   let best: Target | null = null,
     bestScore = Infinity;
   for (const star of clusterOf(ctx.world)) {
@@ -239,6 +252,49 @@ export function voyageTarget(
     }
   }
   return best ? { drive, target: best } : null;
+}
+
+/** A star a realm's ship could sail for now, with the best world there its people could live on (Live a Line's space). */
+export type ReachStar = {
+  readonly star: GalaxyStar;
+  readonly years: number;
+  readonly upkeep: number;
+  /** Another's ship or colony has it already. */
+  readonly taken: boolean;
+};
+
+/**
+ * What a realm lacks to send a ship to the stars, by the voyage's own rules (none: it can, when it chooses), and the stars in its
+ * reach, nearest in time first, each with the world there least to keep. A pure reading, asked by Live a Line (host/line.ts).
+ */
+export function voyageReach(
+  ctx: PopulationContext,
+  p: Polity,
+  most = 8,
+): { wants: string[]; stars: ReachStar[] } {
+  const wants: string[] = [],
+    k = (id: string) => knows(ctx, p.seat, id),
+    drive = starDriveFor(k);
+  if (!spaceOf(ctx.world).of(p.ref)?.station) wants.push("a station kept in orbit");
+  if (!k("habitats")) wants.push("habitats its people could live in out there");
+  if (!drive) wants.push("a drive to cross between the stars");
+  if (machinesOfRealm(ctx, p) * COLONY_SHARE < STARSHIP_MACHINES)
+    wants.push("machines to spare enough to build a ship");
+  if (!drive) return { wants, stars: [] };
+  const longest = longestCrossing(k),
+    taken = new Set<string>((starSitesOf(ctx.world)?.all() ?? []).map(([, s]) => s.star));
+  for (const s of farTaken(ctx.world)) taken.add(s);
+  const livable = livableAt(ctx),
+    stars: ReachStar[] = [];
+  for (const star of clusterOf(ctx.world)) {
+    const years = crossingYears(star.distance, drive);
+    if (years > longest) break;
+    let upkeep = Infinity;
+    for (const w of livable.get(star.ref) ?? []) upkeep = Math.min(upkeep, w.upkeep);
+    if (upkeep < Infinity) stars.push({ star, years, upkeep, taken: taken.has(star.ref) });
+    if (stars.length >= most) break;
+  }
+  return { wants, stars };
 }
 
 /** The year's voyages: ships that arrive, and ships that sail. */
@@ -317,7 +373,17 @@ export function voyageYear(ctx: PopulationContext, t: SimTime): void {
     if (!(world.rng.real(VOYAGE, p.seat, t, 0) < FLIGHT_PACE * drive)) continue;
     const choice = voyageTarget(ctx, p, machines);
     if (!choice) continue;
+    // (Where it sails for the star it was asked for: said, and the ask spent.)
+    const heeded = askedStar(world, p.ref) === choice.target.star.ref;
+    if (heeded)
+      reasons.push({
+        name: "the star it was asked to sail for",
+        value: 1,
+        contribution: 0,
+        source: null,
+      });
     sail(ctx, p, origin, choice.drive, choice.target, reasons, machines, year);
+    if (heeded) spendAsk(world, p.ref);
     // One ship a year in all the world.
     return;
   }
