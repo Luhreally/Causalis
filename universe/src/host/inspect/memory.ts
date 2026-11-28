@@ -158,8 +158,18 @@ type Reading = {
   /** What is remembered of each land, of each realm, and by each town in stone. */
   readonly byCell: ReadonlyMap<number, readonly Deed[]>;
   readonly byRealm: ReadonlyMap<string, readonly Deed[]>;
-  readonly stones: ReadonlyMap<string, readonly Deed[]>;
+  readonly stones: Stones;
   readonly byId: ReadonlyMap<string, Deed>;
+};
+
+/**
+ * Each town's stones (its five greatest, at most two of a kind), read a land at a time as they are asked for: where a deed of a
+ * land with no town of its own stands is its land's heart's, and finding that refines the land's map (host/village.ts
+ * landHeart). Read whole only for a tally of a whole world.
+ */
+type Stones = {
+  get(town: string): readonly Deed[] | undefined;
+  all(): ReadonlyMap<string, readonly Deed[]>;
 };
 
 const KEPT = new WeakMap<World, Reading>();
@@ -531,49 +541,118 @@ function readMemory(world: World, version: string): Reading {
   const byCell = new Map<number, Deed[]>(),
     byRealm = new Map<string, Deed[]>(),
     byTown = new Map<string, Deed[]>(),
-    byId = new Map<string, Deed>();
+    byId = new Map<string, Deed>(),
+    order = new Map<Deed, number>(),
+    // The lands of the deeds that name a town of their own, by the town (for its stones: a land's hunger stones are one a lifetime).
+    namedIn = new Map<string, Set<number>>();
   const put = <K>(m: Map<K, Deed[]>, k: K, d: Deed) => {
     const l = m.get(k);
     if (l) l.push(d);
     else m.set(k, [d]);
   };
-  const hungerStone = new Map<number, number>();
+  // Where a land's deeds that name no town stand: found for the whole land when one of them is first asked where (its `town`).
+  const placed = new Set<number>(),
+    place = (cell: number) => {
+      if (placed.has(cell)) return;
+      placed.add(cell);
+      for (const d of byCell.get(cell) ?? []) {
+        const at = unplaced.get(d);
+        if (!at) continue;
+        unplaced.delete(d);
+        at.town =
+          d.kind === "hunger" || d.kind === "plague" || d.kind === "rising"
+            ? anyTownOfLand(cell, d.year, d.id)
+            : townOfLand(cell, d.year);
+      }
+    },
+    unplaced = new Map<Deed, { town: string | null }>(),
+    // (A kind with no least is carved whatever it is worth.)
+    carves = (d: Deed) => !!d.shape && !!d.town && !(d.worth < STONE_WORTH[d.kind]!);
   deeds.sort((a, b) => a.year - b.year || (a.id < b.id ? -1 : 1));
+  deeds.forEach((d, k) => order.set(d, k));
   for (const d of deeds) {
-    if (d.cell !== null && !d.town)
-      d.town =
-        d.kind === "hunger" || d.kind === "plague" || d.kind === "rising"
-          ? anyTownOfLand(d.cell, d.year, d.id)
-          : townOfLand(d.cell, d.year);
+    if (d.cell !== null && !d.town) {
+      const at = { town: null as string | null },
+        cell = d.cell;
+      unplaced.set(d, at);
+      Object.defineProperty(d, "town", {
+        get: () => {
+          place(cell);
+          return at.town;
+        },
+        set: (v: string | null) => {
+          unplaced.delete(d);
+          at.town = v;
+        },
+        enumerable: true,
+        configurable: true,
+      });
+    } else if (d.town && d.cell !== null) {
+      let cells = namedIn.get(d.town);
+      if (!cells) namedIn.set(d.town, (cells = new Set()));
+      cells.add(d.cell);
+    }
     byId.set(d.id, d);
     if (d.cell !== null) put(byCell, d.cell, d);
     if (d.usRef) put(byRealm, d.usRef, d);
     if (d.themRef) put(byRealm, d.themRef, d);
-    if (!d.shape || !d.town || d.worth < STONE_WORTH[d.kind]!) continue;
-    // (A land raises one hunger stone a long lifetime: on a world that goes hungry often, the rest are songs.)
-    if (d.kind === "hunger" && d.cell !== null) {
-      if (d.year - (hungerStone.get(d.cell) ?? -Infinity) < 120) continue;
-      hungerStone.set(d.cell, d.year);
-    }
-    put(byTown, d.town, d);
+    // (Of no land: carved where it names, at once.)
+    if (d.cell === null && carves(d)) put(byTown, d.town!, d);
   }
-  // A town's five greatest, at most two of a kind.
-  const stones = new Map<string, readonly Deed[]>();
-  for (const [town, list] of byTown) {
-    const kept: Deed[] = [],
-      kinds = new Map<SongKind, number>();
-    for (const d of [...list].sort((a, b) => b.worth - a.worth || a.year - b.year)) {
-      const n = kinds.get(d.kind) ?? 0;
-      if (n >= MOST_OF_A_KIND) continue;
-      kinds.set(d.kind, n + 1);
-      kept.push(d);
-      if (kept.length >= MOST_STONES) break;
-    }
-    stones.set(
-      town,
-      kept.sort((a, b) => a.year - b.year || (a.id < b.id ? -1 : 1)),
-    );
-  }
+  // A land's deeds carved where each stands, in the order they happened; a land raises one hunger stone a long lifetime (on a
+  // world that goes hungry often, the rest are songs).
+  const carved = new Set<number>(),
+    carve = (cell: number) => {
+      if (carved.has(cell)) return;
+      carved.add(cell);
+      let hunger = -Infinity;
+      for (const d of byCell.get(cell) ?? []) {
+        if (!carves(d)) continue;
+        if (d.kind === "hunger") {
+          if (d.year - hunger < 120) continue;
+          hunger = d.year;
+        }
+        put(byTown, d.town!, d);
+      }
+    };
+  // A town's five greatest, at most two of a kind: of the lands whose deeds may stand in it, every deed carved first.
+  const kept = new Map<string, readonly Deed[] | undefined>(),
+    stonesOf = (town: string): readonly Deed[] | undefined => {
+      if (kept.has(town)) return kept.get(town);
+      const s = ctx.settlements.get(town as never);
+      if (s) carve(s.cell);
+      for (const c of namedIn.get(town) ?? []) carve(c);
+      const list = byTown.get(town);
+      let out: Deed[] | undefined;
+      if (list) {
+        out = [];
+        const kinds = new Map<SongKind, number>();
+        for (const d of [...list]
+          .sort((a, b) => order.get(a)! - order.get(b)!)
+          .sort((a, b) => b.worth - a.worth || a.year - b.year)) {
+          const n = kinds.get(d.kind) ?? 0;
+          if (n >= MOST_OF_A_KIND) continue;
+          kinds.set(d.kind, n + 1);
+          out.push(d);
+          if (out.length >= MOST_STONES) break;
+        }
+        out.sort((a, b) => a.year - b.year || (a.id < b.id ? -1 : 1));
+      }
+      kept.set(town, out);
+      return out;
+    },
+    stones: Stones = {
+      get: stonesOf,
+      all: () => {
+        for (const c of byCell.keys()) carve(c);
+        // (In the order each town was first carved in: by the first deed of it, as they happened.)
+        const first = (t: string) => Math.min(...byTown.get(t)!.map((d) => order.get(d)!)),
+          out = new Map<string, readonly Deed[]>();
+        for (const town of [...byTown.keys()].sort((a, b) => first(a) - first(b)))
+          out.set(town, stonesOf(town)!);
+        return out;
+      },
+    };
   return { version, deeds, byCell, byRealm, stones, byId };
 }
 
@@ -1288,7 +1367,7 @@ export function songPage(world: World, ref: string): PageModel {
 export function memoryTally(world: World) {
   const m = memoryOf(world),
     towns = populationContext(world).settlements.all();
-  return { deeds: m.deeds.length, towns: towns.length, stones: m.stones };
+  return { deeds: m.deeds.length, towns: towns.length, stones: m.stones.all() };
 }
 
 export { YEAR as _YEAR };

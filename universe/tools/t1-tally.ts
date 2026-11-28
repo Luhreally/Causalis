@@ -37,7 +37,7 @@ for (const f of files) {
   let total = 0,
     most = "",
     mostN = 0;
-  for (const [t, l] of m.stones) {
+  for (const [t, l] of m.stones.all()) {
     total += l.length;
     if (l.length > mostN) {
       mostN = l.length;
@@ -46,7 +46,7 @@ for (const f of files) {
     for (const d of l) kinds.set(d.kind, (kinds.get(d.kind) ?? 0) + 1);
   }
   const forms = new Map<string, number>();
-  for (const [t] of m.stones)
+  for (const [t] of m.stones.all())
     for (const s of memorialsOf(world, t)) forms.set(s.form, (forms.get(s.form) ?? 0) + 1);
   const top = [...kinds].sort((a, b) => b[1] - a[1]),
     t2 = performance.now();
@@ -90,7 +90,7 @@ for (const f of files) {
         x.blocks.flatMap((b) => (b.type === "text" ? b.lines.map(plainLine) : [])),
       ),
     ].join(" ");
-  for (const [t, l] of m.stones)
+  for (const [t, l] of m.stones.all())
     for (const d of l) {
       const w =
         words(stonePage(world, `stone:${t}:${d.id}`)) + words(songPage(world, `song:${d.id}`));

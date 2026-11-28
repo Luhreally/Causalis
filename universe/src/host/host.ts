@@ -53,13 +53,16 @@ export type Universe = {
   readonly queries: Readonly<Record<string, QueryHandler>>;
   /**
    * Work that can be done early in spare time without changing anything the world
-   * will do (warming pure caches); returns whether it found any. Optional.
+   * will do (warming pure caches); returns whether it found any. `still`: the world is
+   * not running, so a piece of it may take longer than a slice. Optional.
    */
-  readonly idle?: (world: World) => boolean;
+  readonly idle?: (world: World, still: boolean) => boolean;
   /** The view shown before the page says otherwise. */
   readonly defaultView: string;
   /** Whether life arises on a seed's world, and a people in time (the world itself not built). */
   readonly life?: (seed: Seed) => SeedLife;
+  /** The same of the world it has made of that seed, read from what it made (no world made again). */
+  readonly lifeIn?: (world: World) => SeedLife;
   /** What a seed's world allows of each age, read from what it holds (the world itself not built). */
   readonly reading?: (seed: Seed) => SeedReading;
   /** Whether a seed is worth reading for an age: a glance at a coarse world of it, far cheaper. */
@@ -436,9 +439,15 @@ export class SimHost {
         case "life": {
           const universe = this.universes[m.universe];
           if (!universe) throw new Error(`no universe ${m.universe}`);
+          // (Of the world running, read from its own home world: made again, a second of a phone's after each load.)
+          const here =
+            this.world && this.universe === universe && this.world.seed.text === m.seed
+              ? universe.lifeIn?.(this.world)
+              : undefined;
           this.reply(
             m.id,
-            universe.life?.(seedFromText(m.seed)) ?? { living: true, peopled: true, words: "" },
+            here ??
+              universe.life?.(seedFromText(m.seed)) ?? { living: true, peopled: true, words: "" },
           );
           return;
         }
@@ -747,7 +756,7 @@ export class SimHost {
         start - this.lastAsked > ASKING_MS &&
         clock() < start + this.options.budgetMs / 2
       )
-        this.universe.idle(world);
+        this.universe.idle(world, this.speed === 0);
       this.finishMoment();
       this.stepMs = clock() - start;
       const now = clock();

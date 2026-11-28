@@ -313,6 +313,26 @@ function lawThen(world: World, order: RealmOrder, law: "land" | "justice" | "fai
   return changed >= year ? (((e.data as { from?: number } | null)?.from ?? now) as number) : now;
 }
 
+/** The form of a land's court in a year: by its people's nature, whether it writes, and its realm's law of justice. */
+function formIn(world: World, cell: number, year: number): CourtForm {
+  const realm = politiesOf(world).of(cell),
+    order = realm ? orderOf(world)?.of(realm.ref) : undefined,
+    who = peopleLaw(world),
+    writing = loreOf(world).effect(cell, "writing") > 0,
+    justice = order ? lawThen(world, order, "justice", year) : -1;
+  return who.hive
+    ? "hive"
+    : who.water
+      ? "reef"
+      : !writing || !realm
+        ? "elders"
+        : justice <= 0
+          ? "kin"
+          : justice === 1
+            ? "magistrate"
+            : "bench";
+}
+
 function factsOf(world: World, s: Settlement, year: number): Facts {
   const ctx = populationContext(world),
     cell = s.cell,
@@ -320,21 +340,10 @@ function factsOf(world: World, s: Settlement, year: number): Facts {
     realm = realms.of(cell),
     order = realm ? orderOf(world)?.of(realm.ref) : undefined,
     who = peopleLaw(world),
-    writing = loreOf(world).effect(cell, "writing") > 0,
     justice = order ? lawThen(world, order, "justice", year) : -1,
     land = order ? lawThen(world, order, "land", year) : -1,
     far = !!loreOf(world).get(cell, "fusion-power"),
-    form: CourtForm = who.hive
-      ? "hive"
-      : who.water
-        ? "reef"
-        : !writing || !realm
-          ? "elders"
-          : justice <= 0
-            ? "kin"
-            : justice === 1
-              ? "magistrate"
-              : "bench",
+    form = formIn(world, cell, year),
     past = landPast(world, cell),
     market = marketsOf(world).get(cell),
     book = market?.years.find((y) => y.year === year - 1) ?? market?.years.at(-1),
@@ -2705,7 +2714,8 @@ function roleMan(
 
 /** A town's court's form this year, read without its books (who holds its offices asks only this). */
 export function courtFormOf(world: World, s: Settlement): CourtForm {
-  return factsOf(world, s, yearNow(world)).form;
+  // (Only its form: what else a court's facts read, its land's memory among them, a whole world's past at a look, is not wanted.)
+  return formIn(world, s.cell, yearNow(world));
 }
 
 /** A town's court, as its plan carries it (absent: no one lives there, or no one is ever heard). */

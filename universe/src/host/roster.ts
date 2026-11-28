@@ -413,7 +413,11 @@ function cachesOf(world: World): Caches {
   return c;
 }
 
-/** Every strike history still tells, read once a year (as host/town.ts strikesOn reads them). */
+/**
+ * Every strike history still tells since the rosters' window opened (the year before it, to be sure of its first), read once
+ * a year (as host/town.ts strikesOn reads them): no roster folds one from before. (The log runs oldest first: read from the
+ * window on, a twentieth of a late world's, not the whole of it, a quarter of a second a year at 1,300.)
+ */
 function strikesOf(world: World, c: Caches): StrikeIndex {
   if (c.strikes) return c.strikes;
   const fires = new Map<string, Struck[]>(),
@@ -422,8 +426,18 @@ function strikesOf(world: World, c: Caches): StrikeIndex {
       const list = into.get(at);
       if (list) list.push(s);
       else into.set(at, [s]);
-    };
-  for (const e of world.events.all()) {
+    },
+    log = world.events,
+    from = (c.year - ROSTER_YEARS - 1) * YEAR;
+  let lo = 0,
+    hi = log.count;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (log.at(mid).t < from) lo = mid + 1;
+    else hi = mid;
+  }
+  for (let i = lo; i < log.count; i++) {
+    const e = log.at(i);
     const kind: StrikeKind | null =
       e.type === LOCAL_ACT_EVENTS.fire.type
         ? "fire"

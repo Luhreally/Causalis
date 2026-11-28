@@ -108,7 +108,7 @@ function read(f: Forged, far: boolean): { most: string | null; none: string | nu
     share = withStone.length / Math.max(1, towns.length);
   let most: string | null = null,
     mostN = 0;
-  for (const [t, l] of m.stones)
+  for (const [t, l] of m.stones.all())
     if (l.length > mostN && populationContext(w).settlements.get(t as never)?.population) {
       mostN = l.length;
       most = t;
@@ -136,7 +136,7 @@ function read(f: Forged, far: boolean): { most: string | null; none: string | nu
     say(`commonest title ${top[0]}: ${top[1]} of ${m.deeds.length}`);
     check(top[1] / m.deeds.length < 0.15, `${f.seed}: ${top[0]} is ${top[1]} of ${m.deeds.length}`);
   }
-  for (const [t, l] of m.stones)
+  for (const [t, l] of m.stones.all())
     for (const d of l) {
       const pages = [stonePage(w, `stone:${t}:${d.id}`), songPage(w, `song:${d.id}`)];
       for (const p of pages) {
@@ -607,7 +607,7 @@ if (none) {
   const w = made.world,
     realms = politiesOf(w);
   let gone: string | null = null;
-  outer: for (const [t, l] of memoryOf(w).stones)
+  outer: for (const [t, l] of memoryOf(w).stones.all())
     for (const d of l) {
       const by = d.raiser === 1 ? d.themRef : d.usRef,
         r = by ? realms.get(by as never) : undefined;

@@ -999,7 +999,7 @@ function planetUniverse(name: string, prior: Prior): Universe {
       return was.length ? { ...args, was } : undefined;
     },
     // A farming land with no village yet will found one soon: work out its village sites early.
-    idle: (world) => {
+    idle: (world, still) => {
       const ctx = populationContext(world),
         next = ctx.provinces
           .all()
@@ -1011,13 +1011,14 @@ function planetUniverse(name: string, prior: Prior): Universe {
           );
       // (And what each followed people's own world lets it come to, one people at a time: read before a year of
       // history has to wait on a far world's making. sim/space/far-read.ts.)
-      if (!next) return farReadNext(world);
+      if (!next) return farReadNext(world) || (still && warmHeart(world));
       prepareSites(ctx, next.cell);
       return true;
     },
     // Whether life arises on a seed's world (asked 2026-10-24: a world never seen "where the world
     // supports life"; one in ten freezes over lifeless): its home world made, and nothing more.
     life: (seed) => seedLife(generateHomeWorld(seed, prior)),
+    lifeIn: (world) => seedLife(homePlanet(world).generated.fine),
     // What a seed's world allows of each age (Phase 65: "Can it?"): its home world made, and nothing run.
     reading: (seed) => {
       const fine = generateHomeWorld(seed, prior);
@@ -2011,4 +2012,21 @@ function villagePlanQuery(world: World, args: unknown): unknown {
   );
   // (Its key figures, for the page that asks: Lives L1.)
   return planDrawn(world, a.figures ? withFigures(world, drawn) : drawn);
+}
+
+/**
+ * One more land's heart read while the world stands still (host idle), a land a turn, in the provinces' order: where its towns'
+ * squares stand is found once, and kept (sites.ts townBankOf), so that no page waits on a land's map being refined for it
+ * (a second and more of a phone's for each). False once every land of this world has been read.
+ */
+const HEARTS_READ = new Map<string, number>();
+function warmHeart(world: World): boolean {
+  const lands = populationContext(world).provinces.all(),
+    key = world.seed.text,
+    at = HEARTS_READ.get(key) ?? 0;
+  if (at >= lands.length) return false;
+  if (HEARTS_READ.size > 8 && !HEARTS_READ.has(key)) HEARTS_READ.clear();
+  HEARTS_READ.set(key, at + 1);
+  landHeart(world, lands[at]!.cell);
+  return true;
 }
