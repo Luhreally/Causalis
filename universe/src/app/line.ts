@@ -9,7 +9,7 @@
 // readings.saga, never hashed: host/saga.ts). A guide is built in (ui/line-guide.ts): a welcome, lessons that tick
 // themselves off, Show me, a ? on each panel, and What now?.
 import "./line.css";
-import type { GenesisPlan, HostClient } from "../bridge/index.ts";
+import type { GenesisPlan, HostClient, PageModel } from "../bridge/index.ts";
 import { MicroScene, type OrbitRig, type Stage } from "../render/index.ts";
 import { LineCreature, type LineBody } from "./line-creature.ts";
 import { LineBand } from "./line-band.ts";
@@ -94,12 +94,25 @@ export type LineDeps = {
   readonly sound: ConstructorParameters<typeof LineSound>[0];
   /** A page of the god game's opened (the line's story leads into its village, town and realm: S7). */
   readonly open: (ref: string) => void;
+  /** The god game's film of a colony coming down (app/colony-film.ts), ending in its town; null: none on this page. */
+  readonly colony: { play(cell: number): Promise<boolean> } | null;
+  /** Town mode (app/townplace.ts): the town shown entered, or left. */
+  readonly place: { readonly on: boolean; toggle(): Promise<void>; leave(): Promise<void> } | null;
+  /** The god game's page window: a page's own actions (the keys back to the line, on its colony's pages). */
+  readonly pages: {
+    sceneActions: (
+      page: PageModel,
+    ) => { label: string; title: string; on: boolean; run: () => void }[];
+  } | null;
 };
+
+/** Back into the mode where it was left to watch a colony: the line kept (its saga), whence it came, the page to open. */
+type LineBack = { readonly saga: number; readonly at: string };
 
 export type LineFlow = {
   readonly on: boolean;
   /** Entered: a line's ref to live (a tree-of-life node), or null for the world's first cells. */
-  enter(from: string | null): Promise<void>;
+  enter(from: string | null, back?: LineBack): Promise<void>;
   wake(): Promise<void>;
 };
 
@@ -1129,12 +1142,85 @@ export function installLine(d: LineDeps, Loading: typeof PlaceLoading): LineFlow
         [
           ...(settled >= 3 ? [key("📜 Your line's whole way", () => wholeLine(settled))] : []),
           key("Its stars", () => void openStory("story:stars"), true),
-          key("🔭 Go and see it", () => void flow.wake().then(() => d.open(land)), settled >= 3),
+          key("🛬 Watch it come down", () => void watchColony(land), settled >= 3),
         ],
         "help:stars",
       ),
     );
   };
+
+  /**
+   * Its colony watched (owner's word, 2026-11-28): the mode left for the god game's own film of the colony coming down, which
+   * ends in its town; a key there enters that town in town mode, and one goes back to the line where it was left.
+   */
+  const watchColony = async (land: string) => {
+    const cell = Number(land.split(":").at(-1)),
+      back: LineBack | null = saga ? { saga: sagaId, at: "story:stars" } : null,
+      from = saga?.from ?? null;
+    await flow.wake();
+    const shown = (await d.colony?.play(cell).catch(() => false)) ?? false,
+      town = shown
+        ? ((
+            await d.client
+              .query<{ cell: number; town: string | null }[]>({ type: "colony.list" })
+              .catch(() => [])
+          ).find((c) => c.cell === cell)?.town ?? null)
+        : null;
+    // (Its town's page, or with no film to play, its land's: the keys back to the line and into the town are among its
+    // own actions, in the god game's page as every scene's are, over nothing else.)
+    returning = back ? { back, from, at: [land, ...(town ? [town] : [])], town } : null;
+    d.open(town ?? land);
+    // (Its keys brought into sight: on a phone a page's actions stand below its first screen.)
+    window.setTimeout(() => {
+      for (const b of document.querySelectorAll<HTMLElement>(".page-panel button"))
+        if (/Back to your line/.test(b.textContent ?? "")) b.scrollIntoView({ block: "nearest" });
+    }, 700);
+    // (Its town left after being entered in town mode: its page opened again, the key back to the line on it.)
+    let was = false;
+    const watch = window.setInterval(() => {
+      if (!returning || on) return window.clearInterval(watch);
+      const now = !!d.place?.on;
+      if (was && !now) d.open(town ?? land);
+      was = now;
+    }, 400);
+  };
+  /** Watched a colony: whence the line was left, and the pages (its land's, its town's) that carry the keys back. */
+  let returning: {
+    back: LineBack;
+    from: string | null;
+    at: readonly string[];
+    town: string | null;
+  } | null = null;
+  if (d.pages) {
+    const acted = d.pages.sceneActions;
+    d.pages.sceneActions = (page) => {
+      const r = returning;
+      if (!r || on || !r.at.includes(page.ref)) return acted(page);
+      return [
+        ...(r.town === page.ref && d.place && !d.place.on
+          ? [
+              {
+                label: "🏘️ Enter its town",
+                title: "Its town, in town mode",
+                on: false,
+                run: () => void d.place?.toggle(),
+              },
+            ]
+          : []),
+        {
+          label: "🧬 Back to your line",
+          title: "Back to your line, where you left it",
+          on: false,
+          run: async () => {
+            returning = null;
+            if (d.place?.on) await d.place.leave();
+            await flow.enter(r.from, r.back);
+          },
+        },
+        ...acted(page),
+      ];
+    };
+  }
 
   /** Its third world settled (the stars' last lesson): the line's whole way on one card, from its first cell to its worlds. */
   const wholeLine = (settled: number) => {
@@ -2300,7 +2386,9 @@ export function installLine(d: LineDeps, Loading: typeof PlaceLoading): LineFlow
       name: ownName(v.realm),
       when: `the year ${v.year}`,
       through: Math.round(ride.through * 200) / 200,
-      words: `${left} ${left === 1 ? "year" : "years"} to ${v.words.replace(/^A /, "a ")}`,
+      words: left
+        ? `${left} ${left === 1 ? "year" : "years"} to ${v.words.replace(/^A /, "a ")}`
+        : `coming down at ${v.words.replace(/^A /, "a ")}`,
       strip: `${v.people.toLocaleString("en")} aboard`,
       full: v.fed,
       meter: `Fed: ${Math.round(v.fed * 100)} in a hundred of what they need`,
@@ -2314,7 +2402,6 @@ export function installLine(d: LineDeps, Loading: typeof PlaceLoading): LineFlow
           : shown?.classList.contains("line-at-stars")
             ? "story:stars"
             : null;
-    if ((at === null) !== (farAt === null)) document.body.classList.toggle("line-far", at !== null);
     farAt = at;
     const st = storyStars,
       c = storyCouncil,
@@ -2349,6 +2436,10 @@ export function installLine(d: LineDeps, Loading: typeof PlaceLoading): LineFlow
               }
             : null;
     // (Written when it changes: a page open a while costs the frame nothing.)
+    // (Their own sky only where there is a realm to tell: a page of a realm not come yet stays over the stage under it.)
+    const far = !!(at && top);
+    if (far !== document.body.classList.contains("line-far"))
+      document.body.classList.toggle("line-far", far);
     const atop = rideTop() ?? top,
       said = atop ? JSON.stringify(atop) : "";
     if (said === farSaid) return;
@@ -2360,8 +2451,9 @@ export function installLine(d: LineDeps, Loading: typeof PlaceLoading): LineFlow
     get on() {
       return on;
     },
-    async enter(from) {
+    async enter(from, back) {
       if (on || entering) return;
+      returning = null;
       entering = true;
       loading.show(
         {
@@ -2412,6 +2504,7 @@ export function installLine(d: LineDeps, Loading: typeof PlaceLoading): LineFlow
         hud.show();
         on = true;
         const resumable =
+          (back ? kept.find((s) => s.id === back.saga && s.data?.digest === f.digest) : null) ??
           kept.find((s) => s.data?.v === 2 && s.data.digest === f.digest && s.data.from === from) ??
           null;
         if (!p.drop) {
@@ -2431,6 +2524,10 @@ export function installLine(d: LineDeps, Loading: typeof PlaceLoading): LineFlow
           // (The tribe asked for at once, or a camp's own band from its page: the band led, the cells let be.)
           await begin(null, null);
           await startBand(from === "band" ? undefined : from);
+        } else if (back && resumable) {
+          // (Back from watching its colony: the line as it was left, at the page it was left on.)
+          await begin(resumable, from);
+          await openStory(back.at);
         } else {
           await begin(resumable, from);
           if (!guide.welcomed) layer(guide.welcome(() => {}));

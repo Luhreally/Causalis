@@ -10929,7 +10929,18 @@ async function runPlanetPage(): Promise<void> {
   const lineOpen = (from: string | null = null) =>
     (lining ??= import("./line.ts").then((m) =>
       m.installLine(
-        { hud, client, stage, rig, time, sound, open: (ref) => void pageWindow.open(ref) },
+        {
+          hud,
+          client,
+          stage,
+          rig,
+          time,
+          sound,
+          open: (ref) => void pageWindow.open(ref),
+          colony: colonyFilm,
+          place: placeFlow,
+          pages: pageWindow,
+        },
         PlaceLoading,
       ),
     )).then((f) => f.enter(from));
