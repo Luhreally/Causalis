@@ -602,6 +602,8 @@ export {
   placeLotRef,
   placeBelowRef,
   placeInsideRef,
+  placeLegendsRef,
+  placeWorkRef,
   placeItemRef,
   placePersonRef,
   placedId,
@@ -627,6 +629,8 @@ export {
 export type {
   PlaceInspect,
   PlaceInspectBelow,
+  PlaceInspectLegends,
+  PlaceInspectWork,
   PlaceInspectFields,
   PlaceInspectInside,
   PlaceInspectItem,

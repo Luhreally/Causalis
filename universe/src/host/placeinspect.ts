@@ -28,6 +28,7 @@ import {
   PLACE_AT,
   placeItemRef,
   placeLotRef,
+  placeWorkRef,
   placePersonRef,
   placedId,
   type MemberState,
@@ -46,6 +47,7 @@ import { skillLine, temperWords } from "./inspect/place.ts";
 import { groundReading } from "./inspect/ground.ts";
 import { placeFields, placeInside } from "./placeinside.ts";
 import { placeBelow } from "./placebelow.ts";
+import { placeLegends, placeWork } from "./placelegends.ts";
 import {
   ACT,
   AT,
@@ -923,7 +925,8 @@ export function inspectLot(world: World, place: Place, lot: number): PlaceInspec
               : `${s >= 0 ? who(s).name : "one of the town"} who ${hapWords(x.what)}, on day ${x.day % 365 + 1} of the year ${Math.floor(x.day / 365)}`;
         return {
           id: m >= 0 ? x.maker : null,
-          ref: m >= 0 ? who(m).ref : "",
+          // (Its own page, O9: its maker a tap on from there.)
+          ref: placeWorkRef(place.town, lot, x.made, x.maker),
           name: `${cap(WORK_QUALITY[x.quality] ?? "plain")} ${x.form}`,
           words: `showing ${subject}; by ${m >= 0 ? who(m).name : "one gone from the town"}`,
         };
@@ -1042,6 +1045,12 @@ export function placeInspect(world: World, town: string, ref: string): PlaceInsp
   const place = enterPlace(world, town);
   if (!place) return null;
   if (ref.startsWith("plcb:")) return placeBelow(world, place);
+  if (ref.startsWith("plcy:")) return placeLegends(world, place);
+  if (ref.startsWith("plcw:")) {
+    // (plcw:<town>:<lot + 3>:<made>:<maker>: the town's own key has colons of its own.)
+    const [lot, made, maker] = ref.split(":").slice(-3).map(Number) as [number, number, number];
+    return [lot, made, maker].every(Number.isInteger) ? placeWork(world, place, lot - 3, made, maker) : null;
+  }
   if (ref.startsWith("plcg:")) {
     // (plcg:<town>:<holder>:<kind>: the town's own key has colons of its own.)
     const [id, k] = ref.split(":").slice(-2).map(Number) as [number, number];
