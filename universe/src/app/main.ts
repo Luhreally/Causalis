@@ -1616,7 +1616,7 @@ type Exposed = {
   /** The camera's rig, for the look tools. */
   rig?: OrbitRig;
   /** Live a Line entered (its chunk fetched on the first: app/linelazy.ts). */
-  line?: { readonly on: boolean; open(from?: string | null): Promise<void> };
+  line?: { open(from?: string | null): Promise<void> };
   /** The genesis played (Phase 24): its stage and clock, the seed as the hand left it, its drop. */
   genesis?: () => unknown;
   /**
@@ -4887,7 +4887,9 @@ async function runPlanetPage(): Promise<void> {
   stage.onUpdate(() => {
     const usable =
       ["globe", "region", "camp", "village"].includes(scale) && rig.enabled && !onColony();
-    brushes.button.hidden = !usable;
+    // (Set only when it changes: hidden set again every frame was a change the corner rail heard each frame, and it laid
+    // itself out again, the whole page's layout read, every frame a mode held the globe's rig: 2026-11-28.)
+    if (brushes.button.hidden === usable) brushes.button.hidden = !usable;
     if (!usable && brushes.armed) brushes.close();
   });
   setInterval(() => {
@@ -10919,7 +10921,7 @@ async function runPlanetPage(): Promise<void> {
   // Live a Line (its chunk fetched when first entered): from the world's first cells, or from a line of its tree of life.
   const lineFlow = lazyLine({ hud, client, stage, rig, time, sound });
   exposed.line = lineFlow;
-  planetPanel.onLine = () => void lineFlow.open(null);
+  planetPanel.onLine = () => void lineFlow.open();
   {
     const acted = pageWindow.sceneActions;
     pageWindow.sceneActions = (page) =>

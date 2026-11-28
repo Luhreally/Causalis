@@ -36,6 +36,7 @@ import {
 } from "../view/index.ts";
 import {
   aboutHeld,
+  clearAbout,
   divideHeld,
   foodOf,
   heldCell,
@@ -81,8 +82,6 @@ export type LineDeps = {
   readonly rig: OrbitRig;
   /** The world's clock: held while a line is lived, let go on waking. */
   readonly time: { hold(who: string): void; release(who: string): void };
-  /** The god game's loading screen (handed in, so the page's chunks are as without the mode). */
-  readonly Loading: typeof PlaceLoading;
   /** The game's sound: its settings say whether the mode's own small sounds are heard (app/line-sound.ts). */
   readonly sound: ConstructorParameters<typeof LineSound>[0];
 };
@@ -140,9 +139,10 @@ const HUD_EVERY = 125,
 
 type Root = { enabled: boolean; children?: unknown[]; camera?: unknown; light?: unknown };
 
-export function installLine(d: LineDeps): LineFlow {
+/** `Loading`: the god game's loading screen, handed in (so the page's chunks are as without the mode). */
+export function installLine(d: LineDeps, Loading: typeof PlaceLoading): LineFlow {
   const hud = new LineHud(d.hud),
-    loading = new d.Loading(d.hud),
+    loading = new Loading(d.hud),
     pages = new LinePages((ref) => pageOf(ref)),
     guide = new LineGuide(hud.coach, hud.guideButton, hud.element);
   let micro: MicroScene | null = null,
@@ -326,6 +326,7 @@ export function installLine(d: LineDeps): LineFlow {
     from: string | null,
   ): Promise<void> => {
     if (!plan?.drop || !facts) return;
+    guide.away = false;
     const span = cellSpan(rungs);
     if (resume) {
       saga = resume.data;
@@ -562,6 +563,8 @@ export function installLine(d: LineDeps): LineFlow {
       kin ? { x: kin.x, y: kin.y } : null,
       kin ? Math.max(kin.energy, worth(traits.size) * 0.6) : null,
     );
+    const goes = heldCell(drop, hand);
+    if (goes) clearAbout(drop, goes.x, goes.y, ["hunter"]);
     wasFull = false;
     ateSeen = 0;
     ended = false;
@@ -685,6 +688,7 @@ export function installLine(d: LineDeps): LineFlow {
   /** The line's body put into its age's living world (its shallows, while it lives in the water). */
   const startBody = () => {
     if (!saga?.body || !plan) return;
+    guide.away = true;
     const t0 = performance.now(),
       b = saga.body,
       sea = isSea(b.way) || (ashoreAt() > 0 && my > ashoreAt()),
@@ -1556,6 +1560,9 @@ export function installLine(d: LineDeps): LineFlow {
         o.full = 0;
         return true;
       },
+      /** The beast made ready and Court pressed; what the courting is at. */
+      court: () => beast?.courtNow() ?? false,
+      nest: () => beast?.nestNow ?? null,
       /** Past the cells: the founders offered, a body founded, young had (a look tool's shortcut past the courting). */
       founders: () => openFounders(),
       found: (i: number) => found(i),

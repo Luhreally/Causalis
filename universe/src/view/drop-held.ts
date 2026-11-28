@@ -130,6 +130,19 @@ export function kindFor(s: DropState, t: Traits): number {
 }
 
 /** A cell of the line put into the drop, and the hand in it: where it is asked, else the drop's middle. */
+/**
+ * The cells of the given ways within CLEAR of (`x`, `y`) sent across the drop: where the hand begins, and where the line
+ * goes on after its cell was lost (the hunters that took it are elsewhere; it is not taken again at once).
+ */
+export function clearAbout(s: DropState, x: number, y: number, ways: readonly string[]): void {
+  for (const o of s.cells) {
+    if (!ways.includes(o.way) || o.marked) continue;
+    const dx = gap(o.x, x, FIELD_W),
+      dy = gapY(s, o.y, y);
+    if (dx * dx + dy * dy < CLEAR * CLEAR) o.x = wrap(o.x + FIELD_W / 2, FIELD_W);
+  }
+}
+
 export function holdDrop(
   s: DropState,
   t: Traits,
@@ -144,14 +157,8 @@ export function holdDrop(
     sup = supplyOf(s),
     start = at ?? { x: wrap(sup.x + sup.r + START_OFF, FIELD_W), y: placeY(s, sup.y) },
     c = born(s, kind, null, start.x, start.y);
-  if (!at)
-    // (At the supply's edge the rivals are few: those of the open water that crowd it are elsewhere in the drop.)
-    for (const o of s.cells) {
-      if (o.way !== "eater" && o.way !== "hunter") continue;
-      const dx = gap(o.x, start.x, FIELD_W),
-        dy = gapY(s, o.y, start.y);
-      if (dx * dx + dy * dy < CLEAR * CLEAR) o.x = wrap(o.x + FIELD_W / 2, FIELD_W);
-    }
+  // (At the supply's edge the rivals are few: those of the open water that crowd it are elsewhere in the drop.)
+  if (!at) clearAbout(s, start.x, start.y, ["eater", "hunter"]);
   c.size = t.size;
   c.speed = speed;
   // (As a daughter newly divided: half of the twice its worth its mother gathered.)

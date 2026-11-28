@@ -99,6 +99,15 @@ export class LineGuide {
     return LESSONS.find((l) => !this.kept.done.includes(l.id)) ?? null;
   }
 
+  /** Whether the lessons, the cell's, are put by: a body lived (their words of specks and dividing are not its). */
+  private by = false;
+  set away(on: boolean) {
+    if (this.by === on) return;
+    this.by = on;
+    this.coach.dataset.lesson = "";
+    this.draw();
+  }
+
   /** The lesson now in the top's column (or what was just done), and the guide's button with how far it has come. */
   draw(): void {
     const n = this.kept.done.length,
@@ -106,7 +115,7 @@ export class LineGuide {
     this.button.textContent = n >= all ? "📘 Guide ✓" : `📘 Guide ${n}/${all}`;
     this.button.setAttribute("aria-label", `The guide: ${n} of ${all} done`);
     const next = this.next;
-    if (this.kept.hidden || (!next && !this.ticked)) {
+    if (this.kept.hidden || this.by || (!next && !this.ticked)) {
       this.coach.hidden = true;
       this.coach.replaceChildren();
       return;
